@@ -1,0 +1,54 @@
+{
+  "start": {
+    "welcome": "👋 ¡Bienvenido al servicio de soporte!\n\nTe ayudaré con cualquier pregunta sobre el juego.",
+    "choose_action": "Elige una acción:"
+  },
+  "buttons": {
+    "new_ticket": "📝 Crear ticket",
+    "my_tickets": "📋 Mis tickets",
+    "change_language": "🌐 Cambiar idioma",
+    "cancel": "❌ Cancelar",
+    "close_ticket": "✅ Cerrar ticket",
+    "back": "◀️ Atrás",
+    "manager_panel": "👨‍💼 Panel del Manager",
+    "new_tickets": "🆕 Tickets Nuevos",
+    "my_manager_tickets": "📋 Mis Tickets"
+  },
+  "tickets": {
+    "create_prompt": "Describe tu problema o pregunta:",
+    "created": "✅ ¡Ticket #{ticket_number} creado!\n\nTu pregunta será procesada pronto. Tiempo promedio de respuesta: 5-10 minutos.",
+    "max_reached": "❌ Ya tienes {max} tickets activos. Por favor espera una respuesta o cierra los tickets existentes.",
+    "no_active": "No tienes tickets activos.",
+    "list_header": "📋 Tus tickets activos:\n\n",
+    "item": "🎫 {ticket_number}\nEstado: {status}\nCreado: {created_at}",
+    "closed": "✅ Ticket #{ticket_number} cerrado.\n\n¡Gracias por contactarnos! Si tienes nuevas preguntas, crea un nuevo ticket.",
+    "auto_closed": "⏰ El ticket #{ticket_number} fue cerrado automáticamente por inactividad.\n\nSi tienes preguntas, por favor crea un nuevo ticket.",
+    "manager_assigned": "👨‍💼 El manager comenzó a procesar tu ticket.",
+    "new_message": "💬 Nuevo mensaje para el ticket #{ticket_number}:\n\n{message}"
+  },
+  "language": {
+    "select": "🌐 Selecciona el idioma:",
+    "changed": "✅ Idioma cambiado a Español"
+  },
+  "status": {
+    "open": "Esperando",
+    "in_progress": "En proceso",
+    "waiting_user": "Esperando respuesta",
+    "closed": "Cerrado"
+  },
+  "errors": {
+    "general": "❌ Ocurrió un error. Por favor, inténtalo más tarde.",
+    "ticket_not_found": "❌ Ticket no encontrado.",
+    "permission_denied": "❌ No tienes acceso a este comando."
+  },
+  "manager": {
+    "panel": "👨‍💼 Panel del manager\n\nTickets activos: {active_count}\nSin asignar: {unassigned_count}",
+    "ticket_info": "🎫 Ticket: {ticket_number}\n👤 De: {user_name} (@{username})\n🆔 ID: <code>{user_id}</code>\n📅 Creado: {created_at}\n📊 Estado: {status}\n\n💬 Último mensaje:\n{last_message}",
+    "assigned": "✅ Ticket #{ticket_number} asignado a ti.",
+    "message_sent": "✅ Mensaje enviado al usuario.",
+    "no_active_tickets": "No tienes tickets activos.",
+    "no_unassigned": "No hay tickets nuevos.",
+    "new_ticket_notification": "🔔 Nuevo ticket #{ticket_number}\n👤 De: {user_name}\n\n{message}"
+  }
+}
+

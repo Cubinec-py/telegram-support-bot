@@ -1,0 +1,303 @@
+from datetime import datetime
+from typing import Optional, List
+import random
+from sqlalchemy import select, func, and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from bot.database.models import User, Manager, Ticket, Message, TicketStatus, ManagerStatus, UserLanguage
+
+
+class UserRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_or_create(self, telegram_id: int, username: Optional[str] = None,
+                           first_name: Optional[str] = None, last_name: Optional[str] = None,
+                           language: str = "ru") -> User:
+        """Get existing user or create new one"""
+        result = await self.session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user:
+            user = User(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                language=language
+            )
+            self.session.add(user)
+            await self.session.commit()
+            await self.session.refresh(user)
+        else:
+            # Update user info
+            user.username = username
+            user.first_name = first_name
+            user.last_name = last_name
+            user.updated_at = datetime.utcnow()
+            await self.session.commit()
+
+        return user
+
+    async def update_language(self, telegram_id: int, language: str) -> Optional[User]:
+        """Update user language"""
+        result = await self.session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if user:
+            user.language = language
+            user.updated_at = datetime.utcnow()
+            await self.session.commit()
+            await self.session.refresh(user)
+
+        return user
+
+    async def get_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        """Get user by telegram ID"""
+        result = await self.session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        return result.scalar_one_or_none()
+
+
+class ManagerRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_or_create(self, telegram_id: int, username: Optional[str] = None,
+                           first_name: str = "") -> Manager:
+        """Get existing manager or create new one"""
+        result = await self.session.execute(
+            select(Manager).where(Manager.telegram_id == telegram_id)
+        )
+        manager = result.scalar_one_or_none()
+
+        if not manager:
+            manager = Manager(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                status=ManagerStatus.ONLINE
+            )
+            self.session.add(manager)
+            await self.session.commit()
+            await self.session.refresh(manager)
+
+        return manager
+
+    async def update_status(self, telegram_id: int, status: ManagerStatus) -> Optional[Manager]:
+        """Update manager status"""
+        result = await self.session.execute(
+            select(Manager).where(Manager.telegram_id == telegram_id)
+        )
+        manager = result.scalar_one_or_none()
+
+        if manager:
+            manager.status = status
+            manager.updated_at = datetime.utcnow()
+            await self.session.commit()
+            await self.session.refresh(manager)
+
+        return manager
+
+    async def get_available_managers(self) -> List[Manager]:
+        """Get all available (online and not busy) managers"""
+        result = await self.session.execute(
+            select(Manager).where(
+                and_(
+                    Manager.is_active == True,
+                    Manager.status.in_([ManagerStatus.ONLINE])
+                )
+            )
+        )
+        return list(result.scalars().all())
+
+    async def get_manager_with_least_tickets(self) -> Optional[Manager]:
+        """Get manager with least active tickets"""
+        result = await self.session.execute(
+            select(Manager, func.count(Ticket.id).label("ticket_count"))
+            .outerjoin(Ticket, and_(
+                Ticket.manager_id == Manager.id,
+                Ticket.status.in_([TicketStatus.OPEN, TicketStatus.IN_PROGRESS])
+            ))
+            .where(
+                and_(
+                    Manager.is_active == True,
+                    Manager.status == ManagerStatus.ONLINE
+                )
+            )
+            .group_by(Manager.id)
+            .order_by(func.count(Ticket.id))
+            .limit(1)
+        )
+        row = result.first()
+        return row[0] if row else None
+
+    async def get_random_available_manager(self) -> Optional[Manager]:
+        """Get random available manager for ticket assignment"""
+        managers = await self.get_available_managers()
+        return random.choice(managers) if managers else None
+
+
+class TicketRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, user_id: int, subject: Optional[str] = None) -> Ticket:
+        """Create new ticket"""
+        # Generate ticket number
+        result = await self.session.execute(
+            select(func.count(Ticket.id))
+        )
+        count = result.scalar() or 0
+        ticket_number = f"TKT-{count + 1:06d}"
+
+        ticket = Ticket(
+            ticket_number=ticket_number,
+            user_id=user_id,
+            subject=subject,
+            status=TicketStatus.OPEN
+        )
+        self.session.add(ticket)
+        await self.session.commit()
+        await self.session.refresh(ticket)
+
+        return ticket
+
+    async def get_by_id(self, ticket_id: int) -> Optional[Ticket]:
+        """Get ticket by ID with relationships"""
+        result = await self.session.execute(
+            select(Ticket)
+            .options(selectinload(Ticket.user), selectinload(Ticket.manager))
+            .where(Ticket.id == ticket_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_number(self, ticket_number: str) -> Optional[Ticket]:
+        """Get ticket by number"""
+        result = await self.session.execute(
+            select(Ticket)
+            .options(selectinload(Ticket.user), selectinload(Ticket.manager))
+            .where(Ticket.ticket_number == ticket_number)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_user_active_tickets(self, user_id: int) -> List[Ticket]:
+        """Get all active tickets for user"""
+        result = await self.session.execute(
+            select(Ticket)
+            .where(
+                and_(
+                    Ticket.user_id == user_id,
+                    Ticket.status.in_([TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_USER])
+                )
+            )
+            .order_by(Ticket.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_manager_active_tickets(self, manager_id: int) -> List[Ticket]:
+        """Get all active tickets for manager"""
+        result = await self.session.execute(
+            select(Ticket)
+            .options(selectinload(Ticket.user))
+            .where(
+                and_(
+                    Ticket.manager_id == manager_id,
+                    Ticket.status.in_([TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_USER])
+                )
+            )
+            .order_by(Ticket.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_unassigned_tickets(self) -> List[Ticket]:
+        """Get all unassigned tickets"""
+        result = await self.session.execute(
+            select(Ticket)
+            .options(selectinload(Ticket.user))
+            .where(
+                and_(
+                    Ticket.manager_id.is_(None),
+                    Ticket.status == TicketStatus.OPEN
+                )
+            )
+            .order_by(Ticket.created_at)
+        )
+        return list(result.scalars().all())
+
+    async def assign_manager(self, ticket_id: int, manager_id: int) -> Optional[Ticket]:
+        """Assign manager to ticket"""
+        ticket = await self.get_by_id(ticket_id)
+        if ticket:
+            ticket.manager_id = manager_id
+            ticket.status = TicketStatus.IN_PROGRESS
+            ticket.updated_at = datetime.utcnow()
+            await self.session.commit()
+            await self.session.refresh(ticket)
+        return ticket
+
+    async def update_status(self, ticket_id: int, status: TicketStatus) -> Optional[Ticket]:
+        """Update ticket status"""
+        ticket = await self.get_by_id(ticket_id)
+        if ticket:
+            ticket.status = status
+            ticket.updated_at = datetime.utcnow()
+            if status == TicketStatus.CLOSED:
+                ticket.closed_at = datetime.utcnow()
+            await self.session.commit()
+            await self.session.refresh(ticket)
+        return ticket
+
+    async def close_ticket(self, ticket_id: int) -> Optional[Ticket]:
+        """Close ticket"""
+        return await self.update_status(ticket_id, TicketStatus.CLOSED)
+
+    async def get_tickets_waiting_user(self) -> List[Ticket]:
+        """Get all tickets waiting for user response"""
+        result = await self.session.execute(
+            select(Ticket)
+            .options(selectinload(Ticket.user))
+            .where(Ticket.status == TicketStatus.WAITING_USER)
+        )
+        return list(result.scalars().all())
+
+
+class MessageRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, ticket_id: int, message_text: str,
+                    user_id: Optional[int] = None, manager_id: Optional[int] = None,
+                    is_from_user: bool = True) -> Message:
+        """Create new message"""
+        message = Message(
+            ticket_id=ticket_id,
+            user_id=user_id,
+            manager_id=manager_id,
+            message_text=message_text,
+            is_from_user=is_from_user
+        )
+        self.session.add(message)
+        await self.session.commit()
+        await self.session.refresh(message)
+
+        return message
+
+    async def get_ticket_messages(self, ticket_id: int, limit: int = 50) -> List[Message]:
+        """Get all messages for ticket"""
+        result = await self.session.execute(
+            select(Message)
+            .options(selectinload(Message.user), selectinload(Message.manager))
+            .where(Message.ticket_id == ticket_id)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        messages = list(result.scalars().all())
+        return list(reversed(messages))  # Return in chronological order
+

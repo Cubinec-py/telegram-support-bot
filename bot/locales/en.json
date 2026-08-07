@@ -47,7 +47,7 @@
   },
   "manager": {
     "panel": "👨‍💼 Manager panel\n\nActive tickets: {active_count}\nUnassigned: {unassigned_count}",
-    "ticket_info": "🎫 Ticket: {ticket_number}\n👤 From: {user_name} (@{username})\n🆔 ID: <code>{user_id}</code>\n📅 Created: {created_at}\n📊 Status: {status}\n\n💬 Last message:\n{last_message}",
+    "ticket_info": "🎫 Ticket: {ticket_number}\n👤 From: {user_name} (@{username})\n🆔 User's Telegram ID: <code>{user_id}</code>\n📅 Created: {created_at}\n📊 Status: {status}\n\n💬 Last message:\n{last_message}",
     "assigned": "✅ Ticket #{ticket_number} assigned to you.",
     "message_sent": "✅ Message sent to user.",
     "no_active_tickets": "You have no active tickets.",

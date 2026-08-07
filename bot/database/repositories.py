@@ -104,58 +104,6 @@ class ManagerRepository:
 
         return manager
 
-    async def get_available_managers(self) -> List[Manager]:
-        """Get all available (online and not busy) managers"""
-        result = await self.session.execute(
-            select(Manager).where(
-                and_(
-                    Manager.is_active == True,
-                    Manager.status.in_([ManagerStatus.ONLINE])
-                )
-            )
-        )
-        return list(result.scalars().all())
-
-    async def get_and_lock_least_busy_manager(self) -> Optional[Manager]:
-        """
-        Pick an available manager with the fewest active tickets, row-locking every
-        candidate for the duration of the caller's transaction.
-
-        Postgres forbids FOR UPDATE together with GROUP BY, so ticket counts are
-        counted separately after locking. The lock is what actually prevents the
-        race: two concurrent ticket creations both selecting a manager can't both
-        land on the same one, because SKIP LOCKED makes the second transaction see
-        (and pick among) only the managers the first one hasn't already claimed.
-        The lock is released when the caller commits (e.g. inside assign_manager).
-        """
-        locked = await self.session.execute(
-            select(Manager)
-            .where(
-                and_(
-                    Manager.is_active,
-                    Manager.status == ManagerStatus.ONLINE
-                )
-            )
-            .with_for_update(skip_locked=True)
-        )
-        candidates = list(locked.scalars().all())
-        if not candidates:
-            return None
-
-        counts_result = await self.session.execute(
-            select(Ticket.manager_id, func.count(Ticket.id))
-            .where(
-                and_(
-                    Ticket.manager_id.in_([m.id for m in candidates]),
-                    Ticket.status.in_([TicketStatus.OPEN, TicketStatus.IN_PROGRESS])
-                )
-            )
-            .group_by(Ticket.manager_id)
-        )
-        counts = dict(counts_result.all())
-        return min(candidates, key=lambda m: counts.get(m.id, 0))
-
-
 class TicketRepository:
     def __init__(self, session: AsyncSession):
         self.session = session

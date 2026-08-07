@@ -47,7 +47,7 @@
   },
   "manager": {
     "panel": "👨‍💼 Panel del manager\n\nTickets activos: {active_count}\nSin asignar: {unassigned_count}",
-    "ticket_info": "🎫 Ticket: {ticket_number}\n👤 De: {user_name} (@{username})\n🆔 ID: <code>{user_id}</code>\n📅 Creado: {created_at}\n📊 Estado: {status}\n\n💬 Último mensaje:\n{last_message}",
+    "ticket_info": "🎫 Ticket: {ticket_number}\n👤 De: {user_name} (@{username})\n🆔 Telegram ID del usuario: <code>{user_id}</code>\n📅 Creado: {created_at}\n📊 Estado: {status}\n\n💬 Último mensaje:\n{last_message}",
     "assigned": "✅ Ticket #{ticket_number} asignado a ti.",
     "message_sent": "✅ Mensaje enviado al usuario.",
     "no_active_tickets": "No tienes tickets activos.",

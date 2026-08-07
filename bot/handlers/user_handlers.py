@@ -129,19 +129,13 @@ async def create_ticket_finish(message: Message, session: AsyncSession, state: F
         message_text=message.text
     )
 
-    # Auto-assign to the available manager with the fewest active tickets
-    from bot.database.repositories import ManagerRepository
-    manager_repo = ManagerRepository(session)
-    available_manager = await manager_repo.get_and_lock_least_busy_manager()
-
-    if available_manager:
-        assigned_ticket = await ticket_repo.assign_manager(ticket.id, available_manager.id)
-
-        if assigned_ticket:
-            # Notify manager
-            from bot.utils.notifications import notify_manager_new_ticket
-            manager_language = await get_user_language(session, available_manager.telegram_id)
-            await notify_manager_new_ticket(bot, available_manager.telegram_id, ticket, user, message.text, manager_language)
+    # No auto-assignment: the ticket stays OPEN/unassigned in the shared queue
+    # and a manager claims it manually via "Взять в работу". Notify every
+    # admin so whoever's around can pick it up.
+    from bot.utils.notifications import notify_manager_new_ticket
+    for admin_id in settings.admin_ids_list:
+        admin_language = await get_user_language(session, admin_id)
+        await notify_manager_new_ticket(bot, admin_id, ticket, user, message.text, admin_language)
 
     await state.clear()
     await message.answer(

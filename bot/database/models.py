@@ -15,6 +15,11 @@ class UserLanguage(str, enum.Enum):
     ES = "es"
     UK = "uk"
 
+    def __str__(self) -> str:
+        # Without this, f"{UserLanguage.RU}" gives "UserLanguage.RU" instead
+        # of "ru" — Enum's default __str__ wins over the str mixin
+        return self.value
+
 
 class TicketStatus(str, enum.Enum):
     OPEN = "open"
@@ -22,11 +27,17 @@ class TicketStatus(str, enum.Enum):
     WAITING_USER = "waiting_user"
     CLOSED = "closed"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class ManagerStatus(str, enum.Enum):
     ONLINE = "online"
     OFFLINE = "offline"
     BUSY = "busy"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class User(Base):

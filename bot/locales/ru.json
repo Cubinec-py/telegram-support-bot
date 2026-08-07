@@ -47,7 +47,7 @@
   },
   "manager": {
     "panel": "👨‍💼 Панель менеджера\n\nАктивных обращений: {active_count}\nНеназначенных: {unassigned_count}",
-    "ticket_info": "🎫 Обращение: {ticket_number}\n👤 От: {user_name} (@{username})\n🆔 ID: <code>{user_id}</code>\n📅 Создано: {created_at}\n📊 Статус: {status}\n\n💬 Последнее сообщение:\n{last_message}",
+    "ticket_info": "🎫 Обращение: {ticket_number}\n👤 От: {user_name} (@{username})\n🆔 Telegram ID пользователя: <code>{user_id}</code>\n📅 Создано: {created_at}\n📊 Статус: {status}\n\n💬 Последнее сообщение:\n{last_message}",
     "assigned": "✅ Обращение #{ticket_number} назначено вам.",
     "message_sent": "✅ Сообщение отправлено пользователю.",
     "no_active_tickets": "У вас нет активных обращений.",

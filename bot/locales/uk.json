@@ -47,7 +47,7 @@
   },
   "manager": {
     "panel": "👨‍💼 Панель менеджера\n\nАктивних звернень: {active_count}\nНепризначених: {unassigned_count}",
-    "ticket_info": "🎫 Звернення: {ticket_number}\n👤 Від: {user_name} (@{username})\n🆔 ID: <code>{user_id}</code>\n📅 Створено: {created_at}\n📊 Статус: {status}\n\n💬 Останнє повідомлення:\n{last_message}",
+    "ticket_info": "🎫 Звернення: {ticket_number}\n👤 Від: {user_name} (@{username})\n🆔 Telegram ID користувача: <code>{user_id}</code>\n📅 Створено: {created_at}\n📊 Статус: {status}\n\n💬 Останнє повідомлення:\n{last_message}",
     "assigned": "✅ Звернення #{ticket_number} призначено вам.",
     "message_sent": "✅ Повідомлення відправлено користувачу.",
     "no_active_tickets": "У вас немає активних звернень.",

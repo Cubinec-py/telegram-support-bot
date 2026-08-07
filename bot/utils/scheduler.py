@@ -4,15 +4,15 @@ from datetime import datetime, timedelta
 from aiogram import Bot
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from bot.config import settings
 from bot.database.repositories import TicketRepository
-from bot.database.models import TicketStatus
 from bot.utils.notifications import notify_user_ticket_auto_closed
 
 logger = logging.getLogger(__name__)
 
 
 async def check_and_close_inactive_tickets(session_maker: async_sessionmaker, bot: Bot):
-    """Check and close tickets without user response for more than 1 hour"""
+    """Check and close tickets without any new message for longer than settings.AUTO_CLOSE_TIMEOUT"""
     try:
         async with session_maker() as session:
             ticket_repo = TicketRepository(session)
@@ -21,17 +21,22 @@ async def check_and_close_inactive_tickets(session_maker: async_sessionmaker, bo
             tickets_to_check = await ticket_repo.get_tickets_waiting_user()
 
             now = datetime.utcnow()
+            timeout = timedelta(minutes=settings.AUTO_CLOSE_TIMEOUT)
             closed_count = 0
 
             for ticket in tickets_to_check:
-                # Check if last update was more than 1 hour ago
-                time_diff = now - ticket.updated_at
+                # last_activity_at only moves on new messages, unlike updated_at
+                # (which also changes on manager-side reads/status changes)
+                time_diff = now - ticket.last_activity_at
 
-                if time_diff > timedelta(hours=1):
-                    # Close ticket
-                    await ticket_repo.close_ticket(ticket.id)
+                if time_diff > timeout:
+                    # close_ticket() is a no-op (returns None) if the ticket was
+                    # already closed by a manager between our read and here —
+                    # skip notifying in that case to avoid a duplicate message
+                    closed_ticket = await ticket_repo.close_ticket(ticket.id)
+                    if not closed_ticket:
+                        continue
 
-                    # Notify user
                     try:
                         await notify_user_ticket_auto_closed(
                             bot,

@@ -39,7 +39,9 @@
   "errors": {
     "general": "❌ Произошла ошибка. Пожалуйста, попробуйте позже.",
     "ticket_not_found": "❌ Обращение не найдено.",
-    "permission_denied": "❌ У вас нет доступа к этой команде."
+    "permission_denied": "❌ У вас нет доступа к этой команде.",
+    "already_assigned": "⚠️ Обращение уже взято в работу другим менеджером.",
+    "already_closed": "⚠️ Обращение уже закрыто."
   },
   "manager": {
     "panel": "👨‍💼 Панель менеджера\n\nАктивных обращений: {active_count}\nНеназначенных: {unassigned_count}",
@@ -48,6 +50,7 @@
     "message_sent": "✅ Сообщение отправлено пользователю.",
     "no_active_tickets": "У вас нет активных обращений.",
     "no_unassigned": "Нет новых обращений.",
-    "new_ticket_notification": "🔔 Новое обращение #{ticket_number}\n👤 От: {user_name}\n\n{message}"
+    "new_ticket_notification": "🔔 Новое обращение #{ticket_number}\n👤 От: {user_name}\n\n{message}",
+    "new_message_notification": "💬 Новое сообщение в обращении #{ticket_number}:\n\n{message}"
   }
 }

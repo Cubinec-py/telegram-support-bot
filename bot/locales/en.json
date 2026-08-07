@@ -39,7 +39,9 @@
   "errors": {
     "general": "❌ An error occurred. Please try again later.",
     "ticket_not_found": "❌ Ticket not found.",
-    "permission_denied": "❌ You don't have access to this command."
+    "permission_denied": "❌ You don't have access to this command.",
+    "already_assigned": "⚠️ This ticket was already taken by another manager.",
+    "already_closed": "⚠️ This ticket is already closed."
   },
   "manager": {
     "panel": "👨‍💼 Manager panel\n\nActive tickets: {active_count}\nUnassigned: {unassigned_count}",
@@ -48,7 +50,8 @@
     "message_sent": "✅ Message sent to user.",
     "no_active_tickets": "You have no active tickets.",
     "no_unassigned": "No new tickets.",
-    "new_ticket_notification": "🔔 New ticket #{ticket_number}\n👤 From: {user_name}\n\n{message}"
+    "new_ticket_notification": "🔔 New ticket #{ticket_number}\n👤 From: {user_name}\n\n{message}",
+    "new_message_notification": "💬 New message in ticket #{ticket_number}:\n\n{message}"
   }
 }
 

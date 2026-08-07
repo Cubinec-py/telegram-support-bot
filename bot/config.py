@@ -19,18 +19,12 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
 
-    # Game Database (optional)
-    GAME_DB_ENABLED: bool = False
-    GAME_DB_HOST: str = "localhost"
-    GAME_DB_PORT: int = 5432
-    GAME_DB_NAME: str = ""
-    GAME_DB_USER: str = ""
-    GAME_DB_PASSWORD: str = ""
-
     # Bot Settings
     DEFAULT_LANGUAGE: str = "ru"
     SUPPORTED_LANGUAGES: str = "ru,en,es,uk"
     MAX_ACTIVE_TICKETS_PER_USER: int = 3
+    AUTO_CLOSE_TIMEOUT: int = 60  # minutes of inactivity before a ticket is auto-closed
+    LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -41,12 +35,6 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-
-    @property
-    def game_database_url(self) -> str:
-        if self.GAME_DB_ENABLED:
-            return f"postgresql+asyncpg://{self.GAME_DB_USER}:{self.GAME_DB_PASSWORD}@{self.GAME_DB_HOST}:{self.GAME_DB_PORT}/{self.GAME_DB_NAME}"
-        return ""
 
     @property
     def redis_url(self) -> str:

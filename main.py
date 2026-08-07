@@ -3,17 +3,17 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from bot.config import settings
-from bot.database.database import init_db
+from bot.database.database import engine, async_session_maker, init_db
 from bot.handlers import user_handlers, manager_handlers
 from bot.middlewares.db_middleware import DatabaseMiddleware
+from bot.middlewares.rate_limit_middleware import RateLimitMiddleware
 from bot.utils.scheduler import start_ticket_auto_close_scheduler
 
 # Настройка логирования
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -24,9 +24,6 @@ async def main():
     logger.info("Starting bot...")
 
     # Initialize database
-    engine = create_async_engine(settings.database_url, echo=False)
-    session_maker = async_sessionmaker(engine, expire_on_commit=False)
-
     await init_db(engine)
     logger.info("Database initialized")
 
@@ -40,7 +37,10 @@ async def main():
     dp = Dispatcher(storage=storage)
 
     # Register middleware
-    dp.update.middleware(DatabaseMiddleware(session_maker))
+    rate_limit_middleware = RateLimitMiddleware(redis)
+    dp.message.middleware(rate_limit_middleware)
+    dp.callback_query.middleware(rate_limit_middleware)
+    dp.update.middleware(DatabaseMiddleware(async_session_maker))
 
     # Register routers
     dp.include_router(user_handlers.router)
@@ -50,7 +50,7 @@ async def main():
 
     # Start ticket auto-close scheduler
     scheduler_task = asyncio.create_task(
-        start_ticket_auto_close_scheduler(session_maker, bot)
+        start_ticket_auto_close_scheduler(async_session_maker, bot)
     )
     logger.info("Auto-close scheduler started")
 

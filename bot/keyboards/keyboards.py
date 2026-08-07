@@ -104,7 +104,7 @@ def get_manager_ticket_keyboard(ticket_id: int, ticket_number: str) -> InlineKey
     return builder.as_markup()
 
 
-def get_ticket_list_keyboard(tickets: list, prefix: str = "view") -> InlineKeyboardMarkup:
+def get_ticket_list_keyboard(tickets: list, prefix: str = "view", back_callback: str = "manager_panel") -> InlineKeyboardMarkup:
     """Keyboard with list of tickets"""
     builder = InlineKeyboardBuilder()
 
@@ -124,7 +124,7 @@ def get_ticket_list_keyboard(tickets: list, prefix: str = "view") -> InlineKeybo
         )
 
     builder.row(
-        InlineKeyboardButton(text="◀️ Назад", callback_data="manager_panel")
+        InlineKeyboardButton(text="◀️ Назад", callback_data=back_callback)
     )
 
     return builder.as_markup()

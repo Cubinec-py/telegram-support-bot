@@ -39,7 +39,9 @@
   "errors": {
     "general": "❌ Сталася помилка. Будь ласка, спробуйте пізніше.",
     "ticket_not_found": "❌ Звернення не знайдено.",
-    "permission_denied": "❌ У вас немає доступу до цієї команди."
+    "permission_denied": "❌ У вас немає доступу до цієї команди.",
+    "already_assigned": "⚠️ Звернення вже взято в роботу іншим менеджером.",
+    "already_closed": "⚠️ Звернення вже закрито."
   },
   "manager": {
     "panel": "👨‍💼 Панель менеджера\n\nАктивних звернень: {active_count}\nНепризначених: {unassigned_count}",
@@ -48,6 +50,7 @@
     "message_sent": "✅ Повідомлення відправлено користувачу.",
     "no_active_tickets": "У вас немає активних звернень.",
     "no_unassigned": "Немає нових звернень.",
-    "new_ticket_notification": "🔔 Нове звернення #{ticket_number}\n👤 Від: {user_name}\n\n{message}"
+    "new_ticket_notification": "🔔 Нове звернення #{ticket_number}\n👤 Від: {user_name}\n\n{message}",
+    "new_message_notification": "💬 Нове повідомлення у зверненні #{ticket_number}:\n\n{message}"
   }
 }

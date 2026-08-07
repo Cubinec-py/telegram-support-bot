@@ -1,12 +1,13 @@
 from aiogram import Router, F, Bot
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.repositories import UserRepository, TicketRepository, MessageRepository
-from bot.keyboards.keyboards import get_main_keyboard, get_cancel_keyboard, get_language_keyboard, get_ticket_keyboard
+from bot.keyboards.keyboards import get_main_keyboard, get_cancel_keyboard, get_language_keyboard
 from bot.utils.i18n import i18n
+from bot.utils.language import get_user_language
 from bot.states.states import UserStates
 from bot.config import settings
 
@@ -118,21 +119,22 @@ async def create_ticket_finish(message: Message, session: AsyncSession, state: F
     await message_repo.create(
         ticket_id=ticket.id,
         user_id=user.id,
-        message_text=message.text,
-        is_from_user=True
+        message_text=message.text
     )
 
-    # Auto-assign to random available manager
+    # Auto-assign to the available manager with the fewest active tickets
     from bot.database.repositories import ManagerRepository
     manager_repo = ManagerRepository(session)
-    available_manager = await manager_repo.get_random_available_manager()
+    available_manager = await manager_repo.get_and_lock_least_busy_manager()
 
     if available_manager:
-        await ticket_repo.assign_manager(ticket.id, available_manager.id)
+        assigned_ticket = await ticket_repo.assign_manager(ticket.id, available_manager.id)
 
-        # Notify manager
-        from bot.utils.notifications import notify_manager_new_ticket
-        await notify_manager_new_ticket(bot, available_manager.telegram_id, ticket, user, message.text)
+        if assigned_ticket:
+            # Notify manager
+            from bot.utils.notifications import notify_manager_new_ticket
+            manager_language = await get_user_language(session, available_manager.telegram_id)
+            await notify_manager_new_ticket(bot, available_manager.telegram_id, ticket, user, message.text, manager_language)
 
     await state.clear()
     await message.answer(
@@ -228,7 +230,11 @@ async def set_language(callback: CallbackQuery, session: AsyncSession):
 @router.callback_query(F.data.startswith("close_ticket_"))
 async def close_ticket(callback: CallbackQuery, session: AsyncSession):
     """Close ticket"""
-    ticket_id = int(callback.data.split("_")[2])
+    try:
+        ticket_id = int(callback.data.split("_")[2])
+    except (ValueError, IndexError):
+        await callback.answer(i18n.get("errors.general"), show_alert=True)
+        return
 
     user_repo = UserRepository(session)
     user = await user_repo.get_by_telegram_id(callback.from_user.id)
@@ -244,7 +250,11 @@ async def close_ticket(callback: CallbackQuery, session: AsyncSession):
         await callback.answer(i18n.get("errors.ticket_not_found", user.language))
         return
 
-    await ticket_repo.close_ticket(ticket_id)
+    closed_ticket = await ticket_repo.close_ticket(ticket_id)
+
+    if not closed_ticket:
+        await callback.answer(i18n.get("errors.already_closed", user.language), show_alert=True)
+        return
 
     await callback.message.edit_text(
         i18n.get("tickets.closed", user.language, ticket_number=ticket.ticket_number)
@@ -279,8 +289,7 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
         await message_repo.create(
             ticket_id=ticket_id,
             user_id=user.id,
-            message_text=message.text,
-            is_from_user=True
+            message_text=message.text
         )
 
         # Notify manager if assigned
@@ -289,7 +298,8 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
 
         if ticket and ticket.manager_id:
             from bot.utils.notifications import notify_manager_new_message
-            await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text)
+            manager_language = await get_user_language(session, ticket.manager.telegram_id)
+            await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language)
 
 
 # Manager button handlers
@@ -321,11 +331,11 @@ async def manager_panel_button(message: Message, session: AsyncSession):
     unassigned_tickets = await ticket_repo.get_unassigned_tickets()
 
     from bot.keyboards.keyboards import get_manager_main_keyboard
-    from bot.utils.i18n import i18n
 
+    manager_language = await get_user_language(session, message.from_user.id)
     panel_text = i18n.get(
         "manager.panel",
-        "ru",
+        manager_language,
         active_count=len(active_tickets),
         unassigned_count=len(unassigned_tickets)
     )

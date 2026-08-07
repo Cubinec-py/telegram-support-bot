@@ -1,11 +1,10 @@
 from datetime import datetime
 from typing import Optional, List
-import random
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from bot.database.models import User, Manager, Ticket, Message, TicketStatus, ManagerStatus, UserLanguage
+from bot.database.models import User, Manager, Ticket, Message, TicketStatus, ManagerStatus
 
 
 class UserRepository:
@@ -117,31 +116,44 @@ class ManagerRepository:
         )
         return list(result.scalars().all())
 
-    async def get_manager_with_least_tickets(self) -> Optional[Manager]:
-        """Get manager with least active tickets"""
-        result = await self.session.execute(
-            select(Manager, func.count(Ticket.id).label("ticket_count"))
-            .outerjoin(Ticket, and_(
-                Ticket.manager_id == Manager.id,
-                Ticket.status.in_([TicketStatus.OPEN, TicketStatus.IN_PROGRESS])
-            ))
+    async def get_and_lock_least_busy_manager(self) -> Optional[Manager]:
+        """
+        Pick an available manager with the fewest active tickets, row-locking every
+        candidate for the duration of the caller's transaction.
+
+        Postgres forbids FOR UPDATE together with GROUP BY, so ticket counts are
+        counted separately after locking. The lock is what actually prevents the
+        race: two concurrent ticket creations both selecting a manager can't both
+        land on the same one, because SKIP LOCKED makes the second transaction see
+        (and pick among) only the managers the first one hasn't already claimed.
+        The lock is released when the caller commits (e.g. inside assign_manager).
+        """
+        locked = await self.session.execute(
+            select(Manager)
             .where(
                 and_(
-                    Manager.is_active == True,
+                    Manager.is_active,
                     Manager.status == ManagerStatus.ONLINE
                 )
             )
-            .group_by(Manager.id)
-            .order_by(func.count(Ticket.id))
-            .limit(1)
+            .with_for_update(skip_locked=True)
         )
-        row = result.first()
-        return row[0] if row else None
+        candidates = list(locked.scalars().all())
+        if not candidates:
+            return None
 
-    async def get_random_available_manager(self) -> Optional[Manager]:
-        """Get random available manager for ticket assignment"""
-        managers = await self.get_available_managers()
-        return random.choice(managers) if managers else None
+        counts_result = await self.session.execute(
+            select(Ticket.manager_id, func.count(Ticket.id))
+            .where(
+                and_(
+                    Ticket.manager_id.in_([m.id for m in candidates]),
+                    Ticket.status.in_([TicketStatus.OPEN, TicketStatus.IN_PROGRESS])
+                )
+            )
+            .group_by(Ticket.manager_id)
+        )
+        counts = dict(counts_result.all())
+        return min(candidates, key=lambda m: counts.get(m.id, 0))
 
 
 class TicketRepository:
@@ -232,27 +244,50 @@ class TicketRepository:
         return list(result.scalars().all())
 
     async def assign_manager(self, ticket_id: int, manager_id: int) -> Optional[Ticket]:
-        """Assign manager to ticket"""
-        ticket = await self.get_by_id(ticket_id)
-        if ticket:
-            ticket.manager_id = manager_id
-            ticket.status = TicketStatus.IN_PROGRESS
-            ticket.updated_at = datetime.utcnow()
-            await self.session.commit()
-            await self.session.refresh(ticket)
-        return ticket
+        """
+        Assign a manager to an unassigned OPEN ticket.
+
+        Locks the ticket row first and re-checks its state under the lock, so two
+        concurrent assignment attempts (e.g. a manager double-tapping "take" or
+        auto-assign racing a manual claim) can't both succeed: the loser sees the
+        ticket already assigned/closed and gets None back instead of overwriting
+        the winner's assignment or sending a duplicate notification.
+        """
+        result = await self.session.execute(
+            select(Ticket).where(Ticket.id == ticket_id).with_for_update()
+        )
+        ticket = result.scalar_one_or_none()
+        if not ticket or ticket.status != TicketStatus.OPEN or ticket.manager_id is not None:
+            return None
+
+        ticket.manager_id = manager_id
+        ticket.status = TicketStatus.IN_PROGRESS
+        ticket.updated_at = datetime.utcnow()
+        await self.session.commit()
+        return await self.get_by_id(ticket_id)
 
     async def update_status(self, ticket_id: int, status: TicketStatus) -> Optional[Ticket]:
-        """Update ticket status"""
-        ticket = await self.get_by_id(ticket_id)
-        if ticket:
-            ticket.status = status
-            ticket.updated_at = datetime.utcnow()
-            if status == TicketStatus.CLOSED:
-                ticket.closed_at = datetime.utcnow()
-            await self.session.commit()
-            await self.session.refresh(ticket)
-        return ticket
+        """
+        Update ticket status.
+
+        Locks the row and no-ops if the ticket is already in the target status,
+        so two concurrent closers (two managers, or a manager racing the
+        auto-close scheduler) can't both "succeed" and each fire off a duplicate
+        notification to the user.
+        """
+        result = await self.session.execute(
+            select(Ticket).where(Ticket.id == ticket_id).with_for_update()
+        )
+        ticket = result.scalar_one_or_none()
+        if not ticket or ticket.status == status:
+            return None
+
+        ticket.status = status
+        ticket.updated_at = datetime.utcnow()
+        if status == TicketStatus.CLOSED:
+            ticket.closed_at = datetime.utcnow()
+        await self.session.commit()
+        return await self.get_by_id(ticket_id)
 
     async def close_ticket(self, ticket_id: int) -> Optional[Ticket]:
         """Close ticket"""
@@ -273,17 +308,18 @@ class MessageRepository:
         self.session = session
 
     async def create(self, ticket_id: int, message_text: str,
-                    user_id: Optional[int] = None, manager_id: Optional[int] = None,
-                    is_from_user: bool = True) -> Message:
-        """Create new message"""
+                    user_id: Optional[int] = None, manager_id: Optional[int] = None) -> Message:
+        """Create new message and bump the parent ticket's last_activity_at"""
         message = Message(
             ticket_id=ticket_id,
             user_id=user_id,
             manager_id=manager_id,
-            message_text=message_text,
-            is_from_user=is_from_user
+            message_text=message_text
         )
         self.session.add(message)
+        await self.session.execute(
+            update(Ticket).where(Ticket.id == ticket_id).values(last_activity_at=datetime.utcnow())
+        )
         await self.session.commit()
         await self.session.refresh(message)
 

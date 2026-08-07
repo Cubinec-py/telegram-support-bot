@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import ManagerRepository, TicketRepository, MessageRepository, UserRepository
 from bot.keyboards.keyboards import get_manager_main_keyboard, get_manager_ticket_keyboard, get_ticket_list_keyboard
 from bot.utils.i18n import i18n
+from bot.utils.language import get_user_language
 from bot.states.states import ManagerStates
 from bot.config import settings
 from bot.database.models import TicketStatus
@@ -37,9 +38,10 @@ async def cmd_manager_panel(message: Message, session: AsyncSession):
     active_tickets = await ticket_repo.get_manager_active_tickets(manager.id)
     unassigned_tickets = await ticket_repo.get_unassigned_tickets()
 
+    manager_language = await get_user_language(session, message.from_user.id)
     panel_text = i18n.get(
         "manager.panel",
-        "ru",
+        manager_language,
         active_count=len(active_tickets),
         unassigned_count=len(unassigned_tickets)
     )
@@ -70,9 +72,10 @@ async def show_manager_panel(callback: CallbackQuery, session: AsyncSession):
     active_tickets = await ticket_repo.get_manager_active_tickets(manager.id)
     unassigned_tickets = await ticket_repo.get_unassigned_tickets()
 
+    manager_language = await get_user_language(session, callback.from_user.id)
     panel_text = i18n.get(
         "manager.panel",
-        "ru",
+        manager_language,
         active_count=len(active_tickets),
         unassigned_count=len(unassigned_tickets)
     )
@@ -140,7 +143,11 @@ async def view_ticket(callback: CallbackQuery, session: AsyncSession):
         await callback.answer(i18n.get("errors.permission_denied"), show_alert=True)
         return
 
-    ticket_id = int(callback.data.split("_")[-1])
+    try:
+        ticket_id = int(callback.data.split("_")[-1])
+    except (ValueError, IndexError):
+        await callback.answer(i18n.get("errors.general"), show_alert=True)
+        return
 
     ticket_repo = TicketRepository(session)
     ticket = await ticket_repo.get_by_id(ticket_id)
@@ -148,6 +155,8 @@ async def view_ticket(callback: CallbackQuery, session: AsyncSession):
     if not ticket:
         await callback.answer(i18n.get("errors.ticket_not_found"), show_alert=True)
         return
+
+    manager_language = await get_user_language(session, callback.from_user.id)
 
     # Get last messages
     message_repo = MessageRepository(session)
@@ -160,11 +169,11 @@ async def view_ticket(callback: CallbackQuery, session: AsyncSession):
     user_name = user.first_name or f"User {user.telegram_id}"
     user_id = user.telegram_id
     created_at = ticket.created_at.strftime("%d.%m.%Y %H:%M")
-    status = i18n.get(f"status.{ticket.status}", "ru")
+    status = i18n.get(f"status.{ticket.status}", manager_language)
 
     ticket_info = i18n.get(
         "manager.ticket_info",
-        "ru",
+        manager_language,
         ticket_number=ticket.ticket_number,
         user_name=user_name,
         username=username,
@@ -189,7 +198,13 @@ async def assign_ticket(callback: CallbackQuery, session: AsyncSession, bot: Bot
         await callback.answer(i18n.get("errors.permission_denied"), show_alert=True)
         return
 
-    ticket_id = int(callback.data.split("_")[-1])
+    try:
+        ticket_id = int(callback.data.split("_")[-1])
+    except (ValueError, IndexError):
+        await callback.answer(i18n.get("errors.general"), show_alert=True)
+        return
+
+    manager_language = await get_user_language(session, callback.from_user.id)
 
     manager_repo = ManagerRepository(session)
     manager = await manager_repo.get_or_create(
@@ -203,7 +218,7 @@ async def assign_ticket(callback: CallbackQuery, session: AsyncSession, bot: Bot
 
     if ticket:
         await callback.answer(
-            i18n.get("manager.assigned", "ru", ticket_number=ticket.ticket_number),
+            i18n.get("manager.assigned", manager_language, ticket_number=ticket.ticket_number),
             show_alert=True
         )
 
@@ -232,11 +247,11 @@ async def assign_ticket(callback: CallbackQuery, session: AsyncSession, bot: Bot
         user_name = user.first_name or f"User {user.telegram_id}"
         user_id = user.telegram_id
         created_at = ticket.created_at.strftime("%d.%m.%Y %H:%M")
-        status = i18n.get(f"status.{ticket.status}", "ru")
+        status = i18n.get(f"status.{ticket.status}", manager_language)
 
         ticket_info = i18n.get(
             "manager.ticket_info",
-            "ru",
+            manager_language,
             ticket_number=ticket.ticket_number,
             user_name=user_name,
             username=username,
@@ -252,7 +267,11 @@ async def assign_ticket(callback: CallbackQuery, session: AsyncSession, bot: Bot
             parse_mode="HTML"
         )
     else:
-        await callback.answer(i18n.get("errors.ticket_not_found"), show_alert=True)
+        # Either the ticket doesn't exist, or another manager already claimed it
+        # (assign_manager() returns None for both — this is the race-safety path)
+        existing = await ticket_repo.get_by_id(ticket_id)
+        error_key = "errors.already_assigned" if existing else "errors.ticket_not_found"
+        await callback.answer(i18n.get(error_key, manager_language), show_alert=True)
 
 
 @router.callback_query(F.data.startswith("manager_reply_"))
@@ -262,7 +281,11 @@ async def start_reply(callback: CallbackQuery, state: FSMContext):
         await callback.answer(i18n.get("errors.permission_denied"), show_alert=True)
         return
 
-    ticket_id = int(callback.data.split("_")[-1])
+    try:
+        ticket_id = int(callback.data.split("_")[-1])
+    except (ValueError, IndexError):
+        await callback.answer(i18n.get("errors.general"), show_alert=True)
+        return
 
     await state.set_state(ManagerStates.waiting_reply)
     await state.update_data(reply_ticket_id=ticket_id)
@@ -313,8 +336,7 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
     await message_repo.create(
         ticket_id=ticket_id,
         manager_id=manager.id,
-        message_text=message.text,
-        is_from_user=False
+        message_text=message.text
     )
 
     # Update ticket status
@@ -346,7 +368,11 @@ async def close_ticket_manager(callback: CallbackQuery, session: AsyncSession, b
         await callback.answer(i18n.get("errors.permission_denied"), show_alert=True)
         return
 
-    ticket_id = int(callback.data.split("_")[-1])
+    try:
+        ticket_id = int(callback.data.split("_")[-1])
+    except (ValueError, IndexError):
+        await callback.answer(i18n.get("errors.general"), show_alert=True)
+        return
 
     ticket_repo = TicketRepository(session)
     ticket = await ticket_repo.close_ticket(ticket_id)
@@ -370,7 +396,13 @@ async def close_ticket_manager(callback: CallbackQuery, session: AsyncSession, b
         # Return to panel
         await show_manager_panel(callback, session)
     else:
-        await callback.answer(i18n.get("errors.ticket_not_found"), show_alert=True)
+        # Either the ticket doesn't exist, or it was already closed by someone
+        # else (another manager, or the auto-close scheduler) — update_status()
+        # returns None for both, which is what makes close_ticket() idempotent
+        manager_language = await get_user_language(session, callback.from_user.id)
+        existing = await ticket_repo.get_by_id(ticket_id)
+        error_key = "errors.already_closed" if existing else "errors.ticket_not_found"
+        await callback.answer(i18n.get(error_key, manager_language), show_alert=True)
 
 
 @router.callback_query(F.data == "manager_stats")

@@ -74,6 +74,10 @@ class Ticket(Base):
     subject: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Updated only when a new message is posted (unlike updated_at, which also
+    # changes on manager-side reads/status changes) — this is what the
+    # auto-close scheduler checks to decide whether a ticket is truly idle.
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationships
@@ -90,11 +94,14 @@ class Message(Base):
     user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)
     manager_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("managers.id"), nullable=True)
     message_text: Mapped[str] = mapped_column(Text)
-    is_from_user: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
     ticket: Mapped["Ticket"] = relationship(back_populates="messages")
     user: Mapped[Optional["User"]] = relationship(back_populates="messages")
     manager: Mapped[Optional["Manager"]] = relationship(back_populates="messages")
+
+    @property
+    def is_from_user(self) -> bool:
+        return self.user_id is not None
 

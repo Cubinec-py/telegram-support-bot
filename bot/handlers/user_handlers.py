@@ -1,5 +1,5 @@
 from aiogram import Router, F, Bot
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, StateFilter
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,6 +108,13 @@ async def create_ticket_finish(message: Message, session: AsyncSession, state: F
 
     if not user:
         await message.answer(i18n.get("errors.general"))
+        return
+
+    if not message.text:
+        await message.answer(
+            i18n.get("errors.text_only", user.language),
+            reply_markup=get_cancel_keyboard(user.language)
+        )
         return
 
     # Create ticket
@@ -272,6 +279,10 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
     if not user:
         return
 
+    if not message.text:
+        await message.answer(i18n.get("errors.text_only", user.language))
+        return
+
     data = await state.get_data()
     ticket_id = data.get("current_ticket_id")
 
@@ -416,5 +427,27 @@ async def my_tickets_manager_button(message: Message, session: AsyncSession):
     await message.answer(
         i18n.get("buttons.my_manager_tickets", user.language if user else "ru") + ":",
         reply_markup=get_ticket_list_keyboard(tickets, "manager_view")
+    )
+
+
+def _is_not_command(message: Message) -> bool:
+    """Excludes slash-commands so they can still fall through to other
+    routers' Command() handlers (e.g. manager_handlers.router's /manager)
+    instead of being swallowed here."""
+    return not (message.text and message.text.startswith("/"))
+
+
+@router.message(StateFilter(None), _is_not_command)
+async def handle_unknown_message(message: Message, session: AsyncSession):
+    """Fallback for text/media that doesn't match any button while idle
+    (no active FSM state) — without this, such messages are silently
+    dropped and the user gets no response at all."""
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_telegram_id(message.from_user.id)
+    language = user.language if user else settings.DEFAULT_LANGUAGE
+
+    await message.answer(
+        i18n.get("errors.unknown_command", language),
+        reply_markup=get_main_keyboard(language, is_manager=is_manager(message.from_user.id))
     )
 

@@ -41,7 +41,9 @@
     "ticket_not_found": "❌ Ticket no encontrado.",
     "permission_denied": "❌ No tienes acceso a este comando.",
     "already_assigned": "⚠️ Este ticket ya fue tomado por otro manager.",
-    "already_closed": "⚠️ Este ticket ya está cerrado."
+    "already_closed": "⚠️ Este ticket ya está cerrado.",
+    "unknown_command": "🤔 No entiendo este comando. Por favor elige una acción del menú de abajo:",
+    "text_only": "📝 Por favor, envía un mensaje de texto."
   },
   "manager": {
     "panel": "👨‍💼 Panel del manager\n\nTickets activos: {active_count}\nSin asignar: {unassigned_count}",

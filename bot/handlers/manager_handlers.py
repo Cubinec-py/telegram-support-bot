@@ -316,6 +316,11 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
         await state.clear()
         return
 
+    if not message.text:
+        manager_language = await get_user_language(session, message.from_user.id)
+        await message.answer(i18n.get("errors.text_only", manager_language))
+        return
+
     manager_repo = ManagerRepository(session)
     manager = await manager_repo.get_or_create(
         telegram_id=message.from_user.id,

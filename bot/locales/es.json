@@ -16,7 +16,7 @@
   },
   "tickets": {
     "create_prompt": "Describe tu problema o pregunta:",
-    "created": "✅ ¡Ticket #{ticket_number} creado!\n\nTu pregunta será procesada pronto. Tiempo promedio de respuesta: 5-10 minutos.",
+    "created": "✅ ¡Ticket #{ticket_number} creado!\n\nTu pregunta será procesada pronto.",
     "max_reached": "❌ Ya tienes {max} tickets activos. Por favor espera una respuesta o cierra los tickets existentes.",
     "no_active": "No tienes tickets activos.",
     "list_header": "📋 Tus tickets activos:\n\n",

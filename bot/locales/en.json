@@ -16,7 +16,7 @@
   },
   "tickets": {
     "create_prompt": "Describe your problem or question:",
-    "created": "✅ Ticket #{ticket_number} created!\n\nYour question will be processed shortly. Average response time: 5-10 minutes.",
+    "created": "✅ Ticket #{ticket_number} created!\n\nYour question will be processed shortly.",
     "max_reached": "❌ You already have {max} active tickets. Please wait for a response or close existing tickets.",
     "no_active": "You have no active tickets.",
     "list_header": "📋 Your active tickets:\n\n",

@@ -272,66 +272,11 @@ async def close_ticket(callback: CallbackQuery, session: AsyncSession, state: FS
     await callback.answer()
 
 
-@router.message(UserStates.in_ticket_conversation)
-async def handle_ticket_message(message: Message, session: AsyncSession, state: FSMContext, bot: Bot):
-    """Handle message in ticket conversation"""
-    user_repo = UserRepository(session)
-    user = await user_repo.get_by_telegram_id(message.from_user.id)
-
-    if not user:
-        return
-
-    if not message.text:
-        await message.answer(i18n.get("errors.text_only", user.language))
-        return
-
-    ticket_repo = TicketRepository(session)
-    data = await state.get_data()
-    ticket_id = data.get("current_ticket_id")
-    ticket = await ticket_repo.get_by_id(ticket_id) if ticket_id else None
-
-    # The ticket this state points at may no longer be active — closing a
-    # ticket (by the user, a manager, or auto-close) doesn't reset the
-    # user's FSM state. Without this check, further messages would keep
-    # silently attaching to a closed ticket that never shows up in anyone's
-    # "new"/"my tickets" list again — effectively lost.
-    if not ticket or ticket.status == TicketStatus.CLOSED:
-        active_tickets = await ticket_repo.get_user_active_tickets(user.id)
-        if not active_tickets:
-            await state.clear()
-            await message.answer(
-                i18n.get("errors.ticket_closed", user.language),
-                reply_markup=get_main_keyboard(user.language, is_manager=is_manager(message.from_user.id))
-            )
-            return
-        ticket = active_tickets[0]
-        ticket_id = ticket.id
-        await state.update_data(current_ticket_id=ticket_id)
-
-    # Save message
-    message_repo = MessageRepository(session)
-    await message_repo.create(
-        ticket_id=ticket_id,
-        user_id=user.id,
-        message_text=message.text
-    )
-
-    # Notify manager if assigned
-    ticket = await ticket_repo.get_by_id(ticket_id)
-
-    if ticket and ticket.manager_id:
-        from bot.utils.notifications import notify_manager_new_message
-        manager_language = await get_user_language(session, ticket.manager.telegram_id)
-        await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language)
-
-    # Without this the user gets zero feedback after the first message —
-    # from their side it looks like the bot silently swallowed everything
-    await message.answer(
-        i18n.get("tickets.message_added", user.language, ticket_number=ticket.ticket_number)
-    )
-
-
-# Manager button handlers
+# Manager button handlers — registered before handle_ticket_message so an
+# exact button-text match always wins over the "catch anything while in
+# in_ticket_conversation" handler below. Otherwise an admin who also has an
+# open ticket of their own (e.g. from testing the user flow) would have
+# every manager button swallowed as a message into their own ticket instead.
 @router.message(F.text.in_([
     i18n.get("buttons.manager_panel", "ru"),
     i18n.get("buttons.manager_panel", "en"),
@@ -445,6 +390,65 @@ async def my_tickets_manager_button(message: Message, session: AsyncSession):
     await message.answer(
         i18n.get("buttons.my_manager_tickets", user.language if user else "ru") + ":",
         reply_markup=get_ticket_list_keyboard(tickets, "manager_view")
+    )
+
+
+@router.message(UserStates.in_ticket_conversation)
+async def handle_ticket_message(message: Message, session: AsyncSession, state: FSMContext, bot: Bot):
+    """Handle message in ticket conversation"""
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_telegram_id(message.from_user.id)
+
+    if not user:
+        return
+
+    if not message.text:
+        await message.answer(i18n.get("errors.text_only", user.language))
+        return
+
+    ticket_repo = TicketRepository(session)
+    data = await state.get_data()
+    ticket_id = data.get("current_ticket_id")
+    ticket = await ticket_repo.get_by_id(ticket_id) if ticket_id else None
+
+    # The ticket this state points at may no longer be active — closing a
+    # ticket (by the user, a manager, or auto-close) doesn't reset the
+    # user's FSM state. Without this check, further messages would keep
+    # silently attaching to a closed ticket that never shows up in anyone's
+    # "new"/"my tickets" list again — effectively lost.
+    if not ticket or ticket.status == TicketStatus.CLOSED:
+        active_tickets = await ticket_repo.get_user_active_tickets(user.id)
+        if not active_tickets:
+            await state.clear()
+            await message.answer(
+                i18n.get("errors.ticket_closed", user.language),
+                reply_markup=get_main_keyboard(user.language, is_manager=is_manager(message.from_user.id))
+            )
+            return
+        ticket = active_tickets[0]
+        ticket_id = ticket.id
+        await state.update_data(current_ticket_id=ticket_id)
+
+    # Save message
+    message_repo = MessageRepository(session)
+    await message_repo.create(
+        ticket_id=ticket_id,
+        user_id=user.id,
+        message_text=message.text
+    )
+
+    # Notify manager if assigned
+    ticket = await ticket_repo.get_by_id(ticket_id)
+
+    if ticket and ticket.manager_id:
+        from bot.utils.notifications import notify_manager_new_message
+        manager_language = await get_user_language(session, ticket.manager.telegram_id)
+        await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language)
+
+    # Without this the user gets zero feedback after the first message —
+    # from their side it looks like the bot silently swallowed everything
+    await message.answer(
+        i18n.get("tickets.message_added", user.language, ticket_number=ticket.ticket_number)
     )
 
 

@@ -53,16 +53,6 @@ async def notify_manager_new_message(bot: Bot, manager_telegram_id: int, ticket,
     await _safe_send(bot, manager_telegram_id, notification, sticker_file_id)
 
 
-async def notify_user_manager_assigned(bot: Bot, user_telegram_id: int, ticket_number: str, manager_name: str, language: str):
-    """Notify user that manager was assigned"""
-    notification = i18n.get(
-        "tickets.manager_assigned",
-        language,
-        manager_name=manager_name
-    )
-    await _safe_send(bot, user_telegram_id, notification)
-
-
 async def notify_user_ticket_closed(bot: Bot, user_telegram_id: int, ticket_number: str, language: str):
     """Notify user that ticket was closed"""
     notification = i18n.get(

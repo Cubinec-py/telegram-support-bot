@@ -23,7 +23,6 @@
     "item": "🎫 {ticket_number}\nEstado: {status}\nCreado: {created_at}",
     "closed": "✅ Ticket #{ticket_number} cerrado.\n\n¡Gracias por contactarnos! Si tienes nuevas preguntas, crea un nuevo ticket.",
     "auto_closed": "⏰ El ticket #{ticket_number} fue cerrado automáticamente por inactividad.\n\nSi tienes preguntas, por favor crea un nuevo ticket.",
-    "manager_assigned": "👨‍💼 El manager comenzó a procesar tu ticket.",
     "new_message": "💬 Nuevo mensaje para el ticket #{ticket_number}:\n\n{message}",
     "sticker_label": "🏷 Sticker",
     "message_added": "✅ Mensaje añadido al ticket #{ticket_number}."

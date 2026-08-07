@@ -227,20 +227,6 @@ async def assign_ticket(callback: CallbackQuery, session: AsyncSession, bot: Bot
             show_alert=True
         )
 
-        # Notify user
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(ticket.user.telegram_id)
-
-        if user:
-            from bot.utils.notifications import notify_user_manager_assigned
-            await notify_user_manager_assigned(
-                bot,
-                user.telegram_id,
-                ticket.ticket_number,
-                manager.first_name,
-                user.language
-            )
-
         # Refresh view - show ticket info again
         ticket = await ticket_repo.get_by_id(ticket_id)
         message_repo = MessageRepository(session)
@@ -372,16 +358,6 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
     user_obj = await user_repo.get_by_telegram_id(user.telegram_id)
 
     if user_obj:
-        if was_unassigned:
-            from bot.utils.notifications import notify_user_manager_assigned
-            await notify_user_manager_assigned(
-                bot,
-                user.telegram_id,
-                ticket.ticket_number,
-                manager.first_name,
-                user_obj.language
-            )
-
         from bot.utils.notifications import send_message_to_user
         await send_message_to_user(
             bot,

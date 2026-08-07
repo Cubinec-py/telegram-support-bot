@@ -24,7 +24,8 @@
     "closed": "✅ Ticket #{ticket_number} closed.\n\nThank you for contacting us! If you have new questions, create a new ticket.",
     "auto_closed": "⏰ Ticket #{ticket_number} was automatically closed due to inactivity.\n\nIf you have any questions, please create a new ticket.",
     "manager_assigned": "👨‍💼 Manager started processing your ticket.",
-    "new_message": "💬 New message for ticket #{ticket_number}:\n\n{message}"
+    "new_message": "💬 New message for ticket #{ticket_number}:\n\n{message}",
+    "message_added": "✅ Message added to ticket #{ticket_number}."
   },
   "language": {
     "select": "🌐 Select language:",

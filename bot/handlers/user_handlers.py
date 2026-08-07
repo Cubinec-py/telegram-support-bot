@@ -324,6 +324,12 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
         manager_language = await get_user_language(session, ticket.manager.telegram_id)
         await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language)
 
+    # Without this the user gets zero feedback after the first message —
+    # from their side it looks like the bot silently swallowed everything
+    await message.answer(
+        i18n.get("tickets.message_added", user.language, ticket_number=ticket.ticket_number)
+    )
+
 
 # Manager button handlers
 @router.message(F.text.in_([

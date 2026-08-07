@@ -337,12 +337,13 @@ async def new_tickets_button(message: Message, session: AsyncSession):
     from bot.database.repositories import TicketRepository
     from bot.keyboards.keyboards import get_ticket_list_keyboard
 
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_telegram_id(message.from_user.id)
+
     ticket_repo = TicketRepository(session)
     tickets = await ticket_repo.get_unassigned_tickets()
 
     if not tickets:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)
         await message.answer(i18n.get("manager.no_unassigned", user.language if user else "ru"))
         return
 

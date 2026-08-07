@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.repositories import UserRepository, TicketRepository, MessageRepository
 from bot.database.models import TicketStatus
-from bot.keyboards.keyboards import get_main_keyboard, get_cancel_keyboard, get_language_keyboard
+from bot.keyboards.keyboards import get_main_keyboard, get_cancel_keyboard, get_language_keyboard, get_ticket_keyboard
 from bot.utils.i18n import i18n
 from bot.utils.language import get_user_language
 from bot.states.states import UserStates
@@ -174,8 +174,14 @@ async def show_my_tickets(message: Message, session: AsyncSession):
         )
         return
 
-    text = i18n.get("tickets.list_header", user.language)
+    await message.answer(
+        i18n.get("tickets.list_header", user.language),
+        reply_markup=get_main_keyboard(user.language, is_manager=is_manager(message.from_user.id))
+    )
 
+    # One message per ticket (not a single combined text) so each can carry
+    # its own "close" button — this is what get_ticket_keyboard was for, it
+    # just was never actually attached to anything before.
     for ticket in tickets:
         status_text = i18n.get(f"status.{ticket.status}", user.language)
         created_at = ticket.created_at.strftime("%d.%m.%Y %H:%M")
@@ -187,9 +193,10 @@ async def show_my_tickets(message: Message, session: AsyncSession):
             status=status_text,
             created_at=created_at
         )
-        text += f"\n{ticket_text}\n"
-
-    await message.answer(text, reply_markup=get_main_keyboard(user.language, is_manager=is_manager(message.from_user.id)))
+        await message.answer(
+            ticket_text,
+            reply_markup=get_ticket_keyboard(ticket.id, user.language)
+        )
 
 
 @router.message(F.text.in_([

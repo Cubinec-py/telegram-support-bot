@@ -214,6 +214,28 @@ class TicketRepository:
         await self.session.commit()
         return await self.get_by_id(ticket_id)
 
+    async def claim_if_unassigned(self, ticket_id: int, manager_id: int) -> Optional[Ticket]:
+        """
+        Assign a manager to a ticket that has no manager yet, regardless of
+        status — covers a manager replying directly instead of using "Взять
+        в работу" first. Without this, replying doesn't set manager_id, so
+        the ticket falls out of the unassigned queue (status moves off OPEN)
+        without ever landing in that manager's "my tickets" either — it's
+        simply orphaned. Locked the same way as assign_manager to avoid two
+        managers racing to claim the same ticket via simultaneous replies.
+        """
+        result = await self.session.execute(
+            select(Ticket).where(Ticket.id == ticket_id).with_for_update()
+        )
+        ticket = result.scalar_one_or_none()
+        if not ticket or ticket.manager_id is not None:
+            return None
+
+        ticket.manager_id = manager_id
+        ticket.updated_at = datetime.utcnow()
+        await self.session.commit()
+        return await self.get_by_id(ticket_id)
+
     async def update_status(self, ticket_id: int, status: TicketStatus) -> Optional[Ticket]:
         """
         Update ticket status.

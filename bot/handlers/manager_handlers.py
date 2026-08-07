@@ -344,6 +344,16 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
         await state.clear()
         return
 
+    # A manager can open a ticket straight from "New tickets" and hit Reply
+    # without ever tapping "Взять в работу" first. Without claiming it here,
+    # the ticket's status would move off OPEN with manager_id still NULL —
+    # it'd vanish from both the unassigned queue and this manager's list.
+    was_unassigned = ticket.manager_id is None
+    if was_unassigned:
+        claimed = await ticket_repo.claim_if_unassigned(ticket_id, manager.id)
+        if claimed:
+            ticket = claimed
+
     # Save message
     message_repo = MessageRepository(session)
     await message_repo.create(
@@ -362,6 +372,16 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
     user_obj = await user_repo.get_by_telegram_id(user.telegram_id)
 
     if user_obj:
+        if was_unassigned:
+            from bot.utils.notifications import notify_user_manager_assigned
+            await notify_user_manager_assigned(
+                bot,
+                user.telegram_id,
+                ticket.ticket_number,
+                manager.first_name,
+                user_obj.language
+            )
+
         from bot.utils.notifications import send_message_to_user
         await send_message_to_user(
             bot,

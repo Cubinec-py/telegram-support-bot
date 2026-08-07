@@ -5,6 +5,7 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.repositories import UserRepository, TicketRepository, MessageRepository
+from bot.database.models import TicketStatus
 from bot.keyboards.keyboards import get_main_keyboard, get_cancel_keyboard, get_language_keyboard
 from bot.utils.i18n import i18n
 from bot.utils.language import get_user_language
@@ -229,7 +230,7 @@ async def set_language(callback: CallbackQuery, session: AsyncSession):
 
 
 @router.callback_query(F.data.startswith("close_ticket_"))
-async def close_ticket(callback: CallbackQuery, session: AsyncSession):
+async def close_ticket(callback: CallbackQuery, session: AsyncSession, state: FSMContext):
     """Close ticket"""
     try:
         ticket_id = int(callback.data.split("_")[2])
@@ -257,6 +258,13 @@ async def close_ticket(callback: CallbackQuery, session: AsyncSession):
         await callback.answer(i18n.get("errors.already_closed", user.language), show_alert=True)
         return
 
+    # Only clear if the user's active conversation was pointing at this
+    # ticket — don't wipe unrelated in-progress state (e.g. mid-way through
+    # creating a different ticket) if they tapped a stale button.
+    data = await state.get_data()
+    if data.get("current_ticket_id") == ticket_id:
+        await state.clear()
+
     await callback.message.edit_text(
         i18n.get("tickets.closed", user.language, ticket_number=ticket.ticket_number)
     )
@@ -277,34 +285,44 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
         await message.answer(i18n.get("errors.text_only", user.language))
         return
 
+    ticket_repo = TicketRepository(session)
     data = await state.get_data()
     ticket_id = data.get("current_ticket_id")
+    ticket = await ticket_repo.get_by_id(ticket_id) if ticket_id else None
 
-    if not ticket_id:
-        # Get latest active ticket
-        ticket_repo = TicketRepository(session)
-        tickets = await ticket_repo.get_user_active_tickets(user.id)
-        if tickets:
-            ticket_id = tickets[0].id
-            await state.update_data(current_ticket_id=ticket_id)
+    # The ticket this state points at may no longer be active — closing a
+    # ticket (by the user, a manager, or auto-close) doesn't reset the
+    # user's FSM state. Without this check, further messages would keep
+    # silently attaching to a closed ticket that never shows up in anyone's
+    # "new"/"my tickets" list again — effectively lost.
+    if not ticket or ticket.status == TicketStatus.CLOSED:
+        active_tickets = await ticket_repo.get_user_active_tickets(user.id)
+        if not active_tickets:
+            await state.clear()
+            await message.answer(
+                i18n.get("errors.ticket_closed", user.language),
+                reply_markup=get_main_keyboard(user.language, is_manager=is_manager(message.from_user.id))
+            )
+            return
+        ticket = active_tickets[0]
+        ticket_id = ticket.id
+        await state.update_data(current_ticket_id=ticket_id)
 
-    if ticket_id:
-        # Save message
-        message_repo = MessageRepository(session)
-        await message_repo.create(
-            ticket_id=ticket_id,
-            user_id=user.id,
-            message_text=message.text
-        )
+    # Save message
+    message_repo = MessageRepository(session)
+    await message_repo.create(
+        ticket_id=ticket_id,
+        user_id=user.id,
+        message_text=message.text
+    )
 
-        # Notify manager if assigned
-        ticket_repo = TicketRepository(session)
-        ticket = await ticket_repo.get_by_id(ticket_id)
+    # Notify manager if assigned
+    ticket = await ticket_repo.get_by_id(ticket_id)
 
-        if ticket and ticket.manager_id:
-            from bot.utils.notifications import notify_manager_new_message
-            manager_language = await get_user_language(session, ticket.manager.telegram_id)
-            await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language)
+    if ticket and ticket.manager_id:
+        from bot.utils.notifications import notify_manager_new_message
+        manager_language = await get_user_language(session, ticket.manager.telegram_id)
+        await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language)
 
 
 # Manager button handlers

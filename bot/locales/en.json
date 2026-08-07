@@ -43,7 +43,8 @@
     "already_assigned": "⚠️ This ticket was already taken by another manager.",
     "already_closed": "⚠️ This ticket is already closed.",
     "unknown_command": "🤔 I don't understand this command. Please choose an action from the menu below:",
-    "text_only": "📝 Please send a text message."
+    "text_only": "📝 Please send a text message.",
+    "ticket_closed": "⚠️ This ticket is already closed. If your question is still relevant, please create a new ticket."
   },
   "manager": {
     "panel": "👨‍💼 Manager panel\n\nActive tickets: {active_count}\nUnassigned: {unassigned_count}",

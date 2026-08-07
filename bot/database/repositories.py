@@ -255,14 +255,16 @@ class MessageRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(self, ticket_id: int, message_text: str,
-                    user_id: Optional[int] = None, manager_id: Optional[int] = None) -> Message:
-        """Create new message and bump the parent ticket's last_activity_at"""
+    async def create(self, ticket_id: int, message_text: Optional[str] = None,
+                    user_id: Optional[int] = None, manager_id: Optional[int] = None,
+                    sticker_file_id: Optional[str] = None) -> Message:
+        """Create new message (text or sticker) and bump the parent ticket's last_activity_at"""
         message = Message(
             ticket_id=ticket_id,
             user_id=user_id,
             manager_id=manager_id,
-            message_text=message_text
+            message_text=message_text,
+            sticker_file_id=sticker_file_id
         )
         self.session.add(message)
         await self.session.execute(

@@ -104,7 +104,9 @@ class Message(Base):
     ticket_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("tickets.id"))
     user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)
     manager_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("managers.id"), nullable=True)
-    message_text: Mapped[str] = mapped_column(Text)
+    # Exactly one of message_text / sticker_file_id is set, never both
+    message_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sticker_file_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships

@@ -25,6 +25,7 @@
     "auto_closed": "⏰ Ticket #{ticket_number} was automatically closed due to inactivity.\n\nIf you have any questions, please create a new ticket.",
     "manager_assigned": "👨‍💼 Manager started processing your ticket.",
     "new_message": "💬 New message for ticket #{ticket_number}:\n\n{message}",
+    "sticker_label": "🏷 Sticker",
     "message_added": "✅ Message added to ticket #{ticket_number}."
   },
   "language": {
@@ -44,7 +45,7 @@
     "already_assigned": "⚠️ This ticket was already taken by another manager.",
     "already_closed": "⚠️ This ticket is already closed.",
     "unknown_command": "🤔 I don't understand this command. Please choose an action from the menu below:",
-    "text_only": "📝 Please send a text message.",
+    "text_only": "📝 Please send a text message or a sticker.",
     "ticket_closed": "⚠️ This ticket is already closed. If your question is still relevant, please create a new ticket."
   },
   "manager": {

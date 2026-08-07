@@ -8,6 +8,7 @@ from bot.database.repositories import ManagerRepository, TicketRepository, Messa
 from bot.keyboards.keyboards import get_manager_main_keyboard, get_manager_ticket_keyboard, get_ticket_list_keyboard
 from bot.utils.i18n import i18n
 from bot.utils.language import get_user_language
+from bot.utils.notifications import message_preview
 from bot.states.states import ManagerStates
 from bot.config import settings
 from bot.database.models import TicketStatus
@@ -166,7 +167,7 @@ async def view_ticket(callback: CallbackQuery, session: AsyncSession):
     message_repo = MessageRepository(session)
     messages = await message_repo.get_ticket_messages(ticket_id, limit=5)
 
-    last_message = messages[-1].message_text if messages else "Нет сообщений"
+    last_message = message_preview(messages[-1].message_text, manager_language) if messages else "Нет сообщений"
 
     user = ticket.user
     username = user.username if user.username else "нет"
@@ -244,7 +245,7 @@ async def assign_ticket(callback: CallbackQuery, session: AsyncSession, bot: Bot
         ticket = await ticket_repo.get_by_id(ticket_id)
         message_repo = MessageRepository(session)
         messages = await message_repo.get_ticket_messages(ticket_id, limit=5)
-        last_message = messages[-1].message_text if messages else "Нет сообщений"
+        last_message = message_preview(messages[-1].message_text, manager_language) if messages else "Нет сообщений"
 
         user = ticket.user
         username = user.username if user.username else "нет"
@@ -322,7 +323,8 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
         await state.clear()
         return
 
-    if not message.text:
+    sticker_file_id = message.sticker.file_id if message.sticker else None
+    if not message.text and not sticker_file_id:
         manager_language = await get_user_language(session, message.from_user.id)
         await message.answer(i18n.get("errors.text_only", manager_language))
         return
@@ -347,7 +349,8 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
     await message_repo.create(
         ticket_id=ticket_id,
         manager_id=manager.id,
-        message_text=message.text
+        message_text=message.text,
+        sticker_file_id=sticker_file_id
     )
 
     # Update ticket status
@@ -365,7 +368,8 @@ async def send_reply(message: Message, session: AsyncSession, state: FSMContext,
             user.telegram_id,
             ticket.ticket_number,
             message.text,
-            user_obj.language
+            user_obj.language,
+            sticker_file_id
         )
 
     await message.answer(i18n.get("manager.message_sent"))

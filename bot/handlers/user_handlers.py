@@ -111,7 +111,8 @@ async def create_ticket_finish(message: Message, session: AsyncSession, state: F
         await message.answer(i18n.get("errors.general"))
         return
 
-    if not message.text:
+    sticker_file_id = message.sticker.file_id if message.sticker else None
+    if not message.text and not sticker_file_id:
         await message.answer(
             i18n.get("errors.text_only", user.language),
             reply_markup=get_cancel_keyboard(user.language)
@@ -120,14 +121,16 @@ async def create_ticket_finish(message: Message, session: AsyncSession, state: F
 
     # Create ticket
     ticket_repo = TicketRepository(session)
-    ticket = await ticket_repo.create(user_id=user.id, subject=message.text[:500])
+    subject = message.text[:500] if message.text else i18n.get("tickets.sticker_label", user.language)
+    ticket = await ticket_repo.create(user_id=user.id, subject=subject)
 
     # Save first message
     message_repo = MessageRepository(session)
     await message_repo.create(
         ticket_id=ticket.id,
         user_id=user.id,
-        message_text=message.text
+        message_text=message.text,
+        sticker_file_id=sticker_file_id
     )
 
     # No auto-assignment: the ticket stays OPEN/unassigned in the shared queue
@@ -136,7 +139,7 @@ async def create_ticket_finish(message: Message, session: AsyncSession, state: F
     from bot.utils.notifications import notify_manager_new_ticket
     for admin_id in settings.admin_ids_list:
         admin_language = await get_user_language(session, admin_id)
-        await notify_manager_new_ticket(bot, admin_id, ticket, user, message.text, admin_language)
+        await notify_manager_new_ticket(bot, admin_id, ticket, user, message.text, admin_language, sticker_file_id)
 
     await state.clear()
     await message.answer(
@@ -410,7 +413,8 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
     if not user:
         return
 
-    if not message.text:
+    sticker_file_id = message.sticker.file_id if message.sticker else None
+    if not message.text and not sticker_file_id:
         await message.answer(i18n.get("errors.text_only", user.language))
         return
 
@@ -442,7 +446,8 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
     await message_repo.create(
         ticket_id=ticket_id,
         user_id=user.id,
-        message_text=message.text
+        message_text=message.text,
+        sticker_file_id=sticker_file_id
     )
 
     # Notify manager if assigned
@@ -451,7 +456,7 @@ async def handle_ticket_message(message: Message, session: AsyncSession, state: 
     if ticket and ticket.manager_id:
         from bot.utils.notifications import notify_manager_new_message
         manager_language = await get_user_language(session, ticket.manager.telegram_id)
-        await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language)
+        await notify_manager_new_message(bot, ticket.manager.telegram_id, ticket, message.text, manager_language, sticker_file_id)
 
     # Without this the user gets zero feedback after the first message —
     # from their side it looks like the bot silently swallowed everything

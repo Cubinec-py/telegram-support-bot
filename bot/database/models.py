@@ -13,7 +13,7 @@ class UserLanguage(str, enum.Enum):
     RU = "ru"
     EN = "en"
     ES = "es"
-    UK = "uk"
+    UA = "ua"
 
     def __str__(self) -> str:
         # Without this, f"{UserLanguage.RU}" gives "UserLanguage.RU" instead

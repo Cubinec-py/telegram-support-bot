@@ -54,7 +54,7 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext):
     i18n.get("buttons.new_ticket", "ru"),
     i18n.get("buttons.new_ticket", "en"),
     i18n.get("buttons.new_ticket", "es"),
-    i18n.get("buttons.new_ticket", "uk"),
+    i18n.get("buttons.new_ticket", "ua"),
 ]))
 async def create_ticket_start(message: Message, session: AsyncSession, state: FSMContext):
     """Start ticket creation"""
@@ -87,7 +87,7 @@ async def create_ticket_start(message: Message, session: AsyncSession, state: FS
     i18n.get("buttons.cancel", "ru"),
     i18n.get("buttons.cancel", "en"),
     i18n.get("buttons.cancel", "es"),
-    i18n.get("buttons.cancel", "uk"),
+    i18n.get("buttons.cancel", "ua"),
 ]))
 async def cancel_ticket_creation(message: Message, session: AsyncSession, state: FSMContext):
     """Cancel ticket creation"""
@@ -153,7 +153,7 @@ async def create_ticket_finish(message: Message, session: AsyncSession, state: F
     i18n.get("buttons.my_tickets", "ru"),
     i18n.get("buttons.my_tickets", "en"),
     i18n.get("buttons.my_tickets", "es"),
-    i18n.get("buttons.my_tickets", "uk"),
+    i18n.get("buttons.my_tickets", "ua"),
 ]))
 async def show_my_tickets(message: Message, session: AsyncSession):
     """Show user's active tickets"""
@@ -196,7 +196,7 @@ async def show_my_tickets(message: Message, session: AsyncSession):
     i18n.get("buttons.change_language", "ru"),
     i18n.get("buttons.change_language", "en"),
     i18n.get("buttons.change_language", "es"),
-    i18n.get("buttons.change_language", "uk"),
+    i18n.get("buttons.change_language", "ua"),
 ]))
 async def change_language(message: Message, session: AsyncSession):
     """Show language selection"""
@@ -281,7 +281,7 @@ async def close_ticket(callback: CallbackQuery, session: AsyncSession, state: FS
     i18n.get("buttons.manager_panel", "ru"),
     i18n.get("buttons.manager_panel", "en"),
     i18n.get("buttons.manager_panel", "es"),
-    i18n.get("buttons.manager_panel", "uk"),
+    i18n.get("buttons.manager_panel", "ua"),
 ]))
 async def manager_panel_button(message: Message, session: AsyncSession):
     """Handle manager panel button"""
@@ -324,7 +324,7 @@ async def manager_panel_button(message: Message, session: AsyncSession):
     i18n.get("buttons.new_tickets", "ru"),
     i18n.get("buttons.new_tickets", "en"),
     i18n.get("buttons.new_tickets", "es"),
-    i18n.get("buttons.new_tickets", "uk"),
+    i18n.get("buttons.new_tickets", "ua"),
 ]))
 async def new_tickets_button(message: Message, session: AsyncSession):
     """Handle new tickets button"""
@@ -357,7 +357,7 @@ async def new_tickets_button(message: Message, session: AsyncSession):
     i18n.get("buttons.my_manager_tickets", "ru"),
     i18n.get("buttons.my_manager_tickets", "en"),
     i18n.get("buttons.my_manager_tickets", "es"),
-    i18n.get("buttons.my_manager_tickets", "uk"),
+    i18n.get("buttons.my_manager_tickets", "ua"),
 ]))
 async def my_tickets_manager_button(message: Message, session: AsyncSession):
     """Handle manager's my tickets button"""

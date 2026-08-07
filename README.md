@@ -138,7 +138,7 @@ telegram-support-bot/
 │   │
 │   ├── keyboards/keyboards.py     # Keyboard builders
 │   │
-│   ├── locales/                   # ru.json / en.json / es.json / uk.json
+│   ├── locales/                   # ru.json / en.json / es.json / ua.json
 │   │
 │   ├── middlewares/
 │   │   ├── db_middleware.py           # Injects a DB session per update
@@ -170,7 +170,7 @@ telegram-support-bot/
 | id | BigInteger PK | internal id |
 | telegram_id | BigInteger, unique | |
 | username, first_name, last_name | String, nullable | |
-| language | enum (ru/en/es/uk) | |
+| language | enum (ru/en/es/ua) | |
 | created_at, updated_at | DateTime | |
 
 **managers**
@@ -224,7 +224,7 @@ All variables are documented in `.env.example`. Summary:
 | variable | default | description |
 |---|---|---|
 | `DEFAULT_LANGUAGE` | `ru` | default language for new users |
-| `SUPPORTED_LANGUAGES` | `ru,en,es,uk` | comma-separated language codes enabled in the UI |
+| `SUPPORTED_LANGUAGES` | `ru,en,es,ua` | comma-separated language codes enabled in the UI |
 | `MAX_ACTIVE_TICKETS_PER_USER` | `3` | ticket-creation limit per user |
 | `AUTO_CLOSE_TIMEOUT` | `60` | minutes of inactivity before auto-close |
 | `LOG_LEVEL` | `INFO` | Python logging level |

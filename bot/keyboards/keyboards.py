@@ -48,7 +48,7 @@ def get_language_keyboard() -> InlineKeyboardMarkup:
         "ru": "🇷🇺 Русский",
         "en": "🇬🇧 English",
         "es": "🇪🇸 Español",
-        "uk": "🇺🇦 Українська"
+        "ua": "🇺🇦 Українська"
     }
 
     for lang_code, lang_name in languages.items():

@@ -356,7 +356,7 @@ async def new_tickets_button(message: Message, session: AsyncSession):
 
     await message.answer(
         i18n.get("buttons.new_tickets", user.language if user else "ru") + ":",
-        reply_markup=get_ticket_list_keyboard(tickets, "manager_view")
+        reply_markup=get_ticket_list_keyboard(tickets, "manager_view_new")
     )
 
 
@@ -397,7 +397,7 @@ async def my_tickets_manager_button(message: Message, session: AsyncSession):
 
     await message.answer(
         i18n.get("buttons.my_manager_tickets", user.language if user else "ru") + ":",
-        reply_markup=get_ticket_list_keyboard(tickets, "manager_view")
+        reply_markup=get_ticket_list_keyboard(tickets, "manager_view_my")
     )
 
 

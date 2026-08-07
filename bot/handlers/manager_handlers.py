@@ -110,7 +110,7 @@ async def show_my_tickets_manager(callback: CallbackQuery, session: AsyncSession
 
     await callback.message.edit_text(
         "📋 Ваши активные тикеты:",
-        reply_markup=get_ticket_list_keyboard(tickets, "manager_view")
+        reply_markup=get_ticket_list_keyboard(tickets, "manager_view_my")
     )
     await callback.answer()
 
@@ -131,12 +131,12 @@ async def show_new_tickets(callback: CallbackQuery, session: AsyncSession):
 
     await callback.message.edit_text(
         "🆕 Новые тикеты:",
-        reply_markup=get_ticket_list_keyboard(tickets, "manager_view")
+        reply_markup=get_ticket_list_keyboard(tickets, "manager_view_new")
     )
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("manager_view_ticket_"))
+@router.callback_query(F.data.startswith("manager_view_my_ticket_") | F.data.startswith("manager_view_new_ticket_"))
 async def view_ticket(callback: CallbackQuery, session: AsyncSession):
     """View ticket details"""
     if not is_manager(callback.from_user.id):
@@ -148,6 +148,10 @@ async def view_ticket(callback: CallbackQuery, session: AsyncSession):
     except (ValueError, IndexError):
         await callback.answer(i18n.get("errors.general"), show_alert=True)
         return
+
+    # Remember which list this ticket was opened from so "Back" returns
+    # there instead of always bouncing to the general panel
+    back_callback = "manager_my_tickets" if callback.data.startswith("manager_view_my_ticket_") else "manager_new_tickets"
 
     ticket_repo = TicketRepository(session)
     ticket = await ticket_repo.get_by_id(ticket_id)
@@ -185,7 +189,7 @@ async def view_ticket(callback: CallbackQuery, session: AsyncSession):
 
     await callback.message.edit_text(
         ticket_info,
-        reply_markup=get_manager_ticket_keyboard(ticket.id, ticket.ticket_number),
+        reply_markup=get_manager_ticket_keyboard(ticket.id, ticket.ticket_number, back_callback=back_callback),
         parse_mode="HTML"
     )
     await callback.answer()
@@ -261,9 +265,11 @@ async def assign_ticket(callback: CallbackQuery, session: AsyncSession, bot: Bot
             last_message=last_message[:200]
         )
 
+        # Just claimed from the unassigned queue, so it now belongs under
+        # "my tickets" rather than "new tickets"
         await callback.message.edit_text(
             ticket_info,
-            reply_markup=get_manager_ticket_keyboard(ticket.id, ticket.ticket_number),
+            reply_markup=get_manager_ticket_keyboard(ticket.id, ticket.ticket_number, back_callback="manager_my_tickets"),
             parse_mode="HTML"
         )
     else:

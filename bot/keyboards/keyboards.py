@@ -86,7 +86,7 @@ def get_manager_main_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_manager_ticket_keyboard(ticket_id: int, ticket_number: str) -> InlineKeyboardMarkup:
+def get_manager_ticket_keyboard(ticket_id: int, ticket_number: str, back_callback: str = "manager_panel") -> InlineKeyboardMarkup:
     """Manager ticket actions keyboard"""
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -99,7 +99,7 @@ def get_manager_ticket_keyboard(ticket_id: int, ticket_number: str) -> InlineKey
         InlineKeyboardButton(text="🔒 Закрыть", callback_data=f"manager_close_{ticket_id}")
     )
     builder.row(
-        InlineKeyboardButton(text="◀️ Назад", callback_data="manager_panel")
+        InlineKeyboardButton(text="◀️ Назад", callback_data=back_callback)
     )
     return builder.as_markup()
 

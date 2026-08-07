@@ -1,514 +1,319 @@
 # 🤖 Telegram Support Bot
 
-Профессиональный бот для службы поддержки с продвинутой системой тикетов, автоматическим распределением обращений и многоязычной поддержкой.
+A Telegram-based support desk: players open tickets, managers claim and answer them from a manager panel inside the same bot. Built with aiogram 3, PostgreSQL, Redis and SQLAlchemy (async), running fully in Docker.
 
-## ✨ Основные возможности
+## ✨ Features
 
-### Для пользователей:
-- 🌍 **Многоязычная поддержка**: Русский, Английский, Испанский, Украинский
-- 🎫 **Система тикетов**: Создание обращений с автоматической нумерацией
-- 💬 **История общения**: Полное сохранение всех сообщений
-- 📊 **Отслеживание статуса**: Открыт → В обработке → Ожидает ответа → Закрыт
-- ⚡ **Быстрые ответы**: Мгновенные уведомления при ответе менеджера
-- 📱 **Удобный интерфейс**: Интуитивные кнопки и команды
+### For users
+- 🌍 **Multi-language**: Russian, English, Spanish, Ukrainian
+- 🎫 **Ticket system**: auto-numbered tickets (`TKT-000001`, ...) with a limit on active tickets per user
+- 💬 **Conversation history**: every message on both sides is stored against the ticket
+- 📊 **Status tracking**: Open → In progress → Waiting for user → Closed
+- ✅ **Delivery confirmation**: every message you send gets an acknowledgment, so it's never unclear whether it went through
+- 📱 **Simple UI**: everything driven by reply-keyboard buttons, no need to remember commands
 
-### Для менеджеров:
-- 🎯 **Автоматическое распределение**: Случайное назначение тикетов доступным менеджерам
-- 📋 **Панель управления**: Удобный интерфейс для работы с обращениями
-- 🔔 **Уведомления**: Мгновенные оповещения о новых тикетах
-- ⏱️ **Автозакрытие**: Автоматическое закрытие неактивных тикетов (настраивается)
-- 📈 **Статистика**: Просмотр всех активных и закрытых обращений
-- 🔄 **Множественная обработка**: Работа с несколькими тикетами одновременно
+### For managers
+- 📋 **Shared unassigned queue**: new tickets are *not* auto-assigned — they land in a shared "new tickets" list and any manager claims one manually via "Take" (avoids one manager silently getting all the load)
+- 🔔 **Broadcast notifications**: every admin in `ADMIN_IDS` is notified when a new ticket comes in, in their own configured language
+- 💬 **Reply flow**: claim a ticket, reply inline, close it when resolved
+- ⏱️ **Auto-close**: tickets with no new message for `AUTO_CLOSE_TIMEOUT` minutes are closed automatically (based on actual last activity, not just any status change)
+- 🌐 **Localized panel**: the manager panel and notifications are shown in the manager's own language, not hardcoded
 
-## 🛠 Технологический стек
+### Reliability
+- 🔒 **Per-user update serialization**: a Redis lock ensures a single user's updates are processed strictly one at a time, so spamming messages can't race the FSM state and create duplicate tickets
+- 🚦 **Rate limiting**: a per-user Redis-backed limiter drops excess updates before they even reach the lock/handler
+- 🧹 **No lost messages**: if a ticket gets closed mid-conversation (by the user or a manager), the next message is redirected to another active ticket or the user is told to open a new one — it's never silently attached to a dead ticket
 
-- **Python 3.13** - современная версия Python
-- **aiogram 3.15** - мощный асинхронный фреймворк для Telegram Bot API
-- **PostgreSQL 16** - надежная реляционная база данных
-- **Redis 7** - быстрое хранилище FSM состояний
-- **SQLAlchemy 2.0** - современная асинхронная ORM
-- **Alembic** - система миграций базы данных
-- **APScheduler** - планировщик задач для автозакрытия тикетов
-- **Docker & Docker Compose** - контейнеризация и оркестрация
-- **pgAdmin 4** - веб-интерфейс для управления PostgreSQL
+## 🛠 Tech stack
 
-## 📋 Требования
+- **Python 3.11**
+- **aiogram 3.3** — async Telegram Bot API framework
+- **PostgreSQL 16**
+- **Redis 7** — FSM storage, rate limiting, per-user locking
+- **SQLAlchemy 2.0** (async) — ORM
+- **Alembic** — database migrations
+- **Docker & Docker Compose** — containerization
 
-- Docker (версия 20.10+)
-- Docker Compose (версия 2.0+)
-- Telegram Bot Token (получить у [@BotFather](https://t.me/BotFather))
+There is no task scheduler library — ticket auto-close runs as a plain `asyncio` loop inside the bot process (`bot/utils/scheduler.py`), not APScheduler or Celery.
 
+## 📋 Requirements
 
-## 🚀 Быстрый старт
+- Docker (20.10+)
+- Docker Compose v2 (the `docker compose` plugin, not the standalone `docker-compose` binary)
+- A Telegram Bot Token from [@BotFather](https://t.me/BotFather)
 
-### 1. Клонирование репозитория
+## 🚀 Quick start
+
+### 1. Clone the repository
 
 ```bash
 git clone <repository-url>
 cd telegram-support-bot
 ```
 
-### 2. Создание Telegram бота
+### 2. Create a Telegram bot
 
-1. Откройте Telegram и найдите [@BotFather](https://t.me/BotFather)
-2. Отправьте команду `/newbot`
-3. Следуйте инструкциям и получите **Bot Token**
-4. Узнайте свой Telegram ID у [@userinfobot](https://t.me/userinfobot)
+1. Open [@BotFather](https://t.me/BotFather) in Telegram
+2. Send `/newbot` and follow the prompts to get a **Bot Token**
+3. Get your own Telegram ID from [@userinfobot](https://t.me/userinfobot)
 
-### 3. Настройка переменных окружения
-
-Скопируйте файл-пример и отредактируйте его:
+### 3. Configure environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Откройте `.env` и заполните необходимые данные:
+Edit `.env` and fill in at least:
 
 ```env
-# Обязательные параметры
-BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz  # Ваш токен от BotFather
-ADMIN_IDS=123456789,987654321                    # Ваш Telegram ID (можно несколько через запятую)
-
-# База данных (можно оставить по умолчанию)
-POSTGRES_PASSWORD=your_secure_password_here      # Придумайте надежный пароль
-
-# Остальные параметры можно оставить как есть
+BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz   # from BotFather
+ADMIN_IDS=123456789,987654321                     # manager Telegram IDs, comma-separated
+POSTGRES_PASSWORD=<a real password>                # don't leave the placeholder
 ```
 
-### 4. Запуск приложения
+Everything else has a sane default — see the [Configuration](#️-configuration) section below.
 
-Запустите все сервисы одной командой:
+### 4. Start the stack
 
 ```bash
-docker-compose up -d
+docker compose up -d --build
 ```
 
-Дождитесь загрузки и запуска контейнеров (обычно 30-60 секунд).
+This builds and starts `postgres`, `redis` and `bot`. On startup, the `bot` container automatically runs `alembic upgrade head` before starting the bot — there's no separate manual migration step.
 
-### 5. Применение миграций базы данных
+### 5. Done 🎉
 
-После первого запуска выполните миграции:
+Find your bot in Telegram and send `/start`.
 
-```bash
-docker-compose exec bot alembic upgrade head
-```
+## 📱 Using the bot
 
-### 6. Готово! 🎉
+### As a user
 
-Ваш бот запущен и готов к работе! Найдите его в Telegram и отправьте `/start`.
+1. Send `/start`, pick a language
+2. **📝 Create ticket** → describe your problem in the next message
+3. You'll get a confirmation with the ticket number; keep typing in the same chat to add more messages to it — each one is acknowledged
+4. A manager will reply once they've claimed the ticket; you'll be notified
+5. The ticket auto-closes after `AUTO_CLOSE_TIMEOUT` minutes of inactivity once a manager has replied and is waiting on you
 
-## 📱 Использование бота
+Main menu buttons:
+- **📝 Create ticket**
+- **📋 My tickets** — your active tickets and their status
+- **🌐 Change language**
 
-### Для пользователей игры
+### As a manager
 
-**Первый запуск:**
-1. Найдите вашего бота в Telegram
-2. Нажмите `Start` или отправьте `/start`
-3. Выберите предпочитаемый язык 🌐
-4. Готово! Можно создавать обращения
+1. Add your Telegram ID to `ADMIN_IDS` in `.env` and restart the bot (`docker compose restart bot`)
+2. Use `/manager` or the **👨‍💼 Manager Panel** button
+3. New tickets show up for *every* admin as a notification — open **🆕 New tickets** and tap one to claim it ("Take")
+4. Once claimed, reply from the ticket view; the user gets notified
+5. Close the ticket when resolved
 
-**Создание обращения:**
-1. В главном меню нажмите **📝 Создать обращение**
-2. Опишите вашу проблему или вопрос
-3. Дождитесь ответа менеджера (вы получите уведомление)
-4. Продолжайте диалог в том же тикете
+Manager panel:
+- **📋 My tickets** — tickets currently assigned to you
+- **🆕 New tickets** — unclaimed tickets waiting in the shared queue
+- **📊 Statistics** — basic count of your active tickets
 
-**Доступные команды:**
-- `/start` - Главное меню и справка
-- **📝 Создать обращение** - Новый тикет в поддержку
-- **📋 Мои обращения** - Список ваших активных тикетов
-- **🌐 Изменить язык** - Сменить язык интерфейса
-
-### Для менеджеров поддержки
-
-**Получение доступа:**
-1. Убедитесь, что ваш Telegram ID добавлен в переменную `ADMIN_IDS` в `.env`
-2. Перезапустите бота: `docker-compose restart bot`
-3. Используйте команду `/manager` для доступа к панели менеджера
-
-**Работа с тикетами:**
-1. Новые тикеты автоматически распределяются между доступными менеджерами
-2. Вы получите уведомление о новом тикете
-3. Нажмите **📋 Активные тикеты** для просмотра обращений
-4. Выберите тикет и отвечайте на сообщения пользователя
-5. Закройте тикет кнопкой **✅ Закрыть тикет** после решения проблемы
-
-**Панель менеджера:**
-- **📋 Активные тикеты** - Все открытые обращения
-- **🆕 Новые тикеты** - Нераспределенные обращения
-- **📊 Статистика** - Общая информация (планируется)
-
-## 🔧 Управление сервисами
-
-### Основные команды Docker Compose
-
-```bash
-# Запуск всех сервисов
-docker-compose up -d
-
-# Остановка всех сервисов
-docker-compose down
-
-# Перезапуск бота
-docker-compose restart bot
-
-# Просмотр логов всех сервисов
-docker-compose logs -f
-
-# Просмотр логов только бота
-docker-compose logs -f bot
-
-# Пересборка и запуск (после изменения кода)
-docker-compose up -d --build
-
-# Полная очистка (удаление данных БД!)
-docker-compose down -v
-```
-
-### Работа с базой данных
-
-```bash
-# Применить миграции
-docker-compose exec bot alembic upgrade head
-
-# Откатить последнюю миграцию
-docker-compose exec bot alembic downgrade -1
-
-# Посмотреть текущую версию БД
-docker-compose exec bot alembic current
-
-# Создать новую миграцию
-docker-compose exec bot alembic revision --autogenerate -m "описание изменений"
-```
-
-## 🗄️ Управление базой данных через pgAdmin
-
-pgAdmin предоставляет удобный веб-интерфейс для работы с PostgreSQL.
-
-**Доступ к pgAdmin:**
-1. Откройте в браузере: http://localhost:5050
-2. Войдите с учетными данными из `.env`:
-   - Email: значение из `PGADMIN_EMAIL` (по умолчанию: admin@admin.com)
-   - Password: значение из `PGADMIN_PASSWORD` (по умолчанию: admin)
-
-**Добавление сервера PostgreSQL:**
-1. Правый клик на **Servers** → **Register** → **Server**
-2. Вкладка **General**:
-   - Name: `Support Bot DB` (любое имя)
-3. Вкладка **Connection**:
-   - Host: `postgres`
-   - Port: `5432`
-   - Database: значение из `POSTGRES_DB` (по умолчанию: `support_bot`)
-   - Username: значение из `POSTGRES_USER` (по умолчанию: `postgres`)
-   - Password: значение из `POSTGRES_PASSWORD`
-   - ✅ Save password
-4. Нажмите **Save**
-
-Теперь вы можете:
-- Просматривать таблицы и данные
-- Выполнять SQL запросы
-- Экспортировать/импортировать данные
-- Создавать бэкапы
-- Мониторить активность
-
-## 📁 Структура проекта
+## 📁 Project structure
 
 ```
 telegram-support-bot/
-├── 📄 main.py                      # Точка входа приложения
-├── 📄 requirements.txt             # Python зависимости
-├── 📄 Dockerfile                   # Конфигурация Docker образа
-├── 📄 docker-compose.yml           # Оркестрация сервисов
-├── 📄 alembic.ini                  # Конфигурация Alembic
-├── 📄 .env.example                 # Пример переменных окружения
-├── 📄 .env                         # Ваши переменные окружения (не в git)
-├── 📄 README.md                    # Документация
+├── main.py                        # Entry point: wires up bot, DB, Redis, middleware, scheduler
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── alembic.ini
+├── .env.example
 │
-├── 📂 bot/                         # Основной код бота
-│   ├── 📄 config.py                # Конфигурация и настройки
+├── bot/
+│   ├── config.py                  # Pydantic settings, read from .env
 │   │
-│   ├── 📂 database/                # Работа с базой данных
-│   │   ├── 📄 database.py          # Инициализация подключения
-│   │   ├── 📄 models.py            # SQLAlchemy модели (User, Manager, Ticket, Message)
-│   │   └── 📄 repositories.py      # Репозитории для работы с данными
+│   ├── database/
+│   │   ├── database.py            # Engine/session factory, init_db()
+│   │   ├── models.py              # SQLAlchemy models: User, Manager, Ticket, Message
+│   │   └── repositories.py        # Data access layer (row-locking for concurrency safety)
 │   │
-│   ├── 📂 handlers/                # Обработчики событий бота
-│   │   ├── 📄 user_handlers.py     # Обработчики для обычных пользователей
-│   │   └── 📄 manager_handlers.py  # Обработчики для менеджеров
+│   ├── handlers/
+│   │   ├── user_handlers.py       # User-facing flow + manager reply-keyboard buttons
+│   │   └── manager_handlers.py    # Manager panel callbacks (claim/reply/close)
 │   │
-│   ├── 📂 keyboards/               # Клавиатуры Telegram
-│   │   └── 📄 keyboards.py         # Генераторы клавиатур
+│   ├── keyboards/keyboards.py     # Keyboard builders
 │   │
-│   ├── 📂 locales/                 # Файлы переводов
-│   │   ├── 📄 ru.json              # Русский 🇷🇺
-│   │   ├── 📄 en.json              # English 🇬🇧
-│   │   ├── 📄 es.json              # Español 🇪🇸
-│   │   └── 📄 uk.json              # Українська 🇺🇦
+│   ├── locales/                   # ru.json / en.json / es.json / uk.json
 │   │
-│   ├── 📂 middlewares/             # Middleware слой
-│   │   └── 📄 db_middleware.py     # Middleware для сессий БД
+│   ├── middlewares/
+│   │   ├── db_middleware.py           # Injects a DB session per update
+│   │   ├── rate_limit_middleware.py   # Drops updates over the per-user rate limit
+│   │   └── user_lock_middleware.py    # Serializes per-user update processing
 │   │
-│   ├── 📂 states/                  # FSM состояния
-│   │   └── 📄 states.py            # Определение состояний диалога
+│   ├── states/states.py           # FSM states
 │   │
-│   └── 📂 utils/                   # Утилиты и хелперы
-│       ├── 📄 i18n.py              # Система интернационализации
-│       ├── 📄 notifications.py     # Отправка уведомлений
-│       └── 📄 scheduler.py         # Планировщик задач
+│   └── utils/
+│       ├── i18n.py                # Translation lookup
+│       ├── language.py            # Resolve a Telegram user's saved language
+│       ├── notifications.py       # Outbound notifications (handles blocked-bot errors)
+│       └── scheduler.py           # Auto-close loop
 │
-├── 📂 alembic/                     # Миграции базы данных
-│   ├── 📄 env.py                   # Конфигурация окружения Alembic
-│   └── 📂 versions/                # Файлы миграций
-│       └── 📄 001_initial_migration.py
+├── alembic/
+│   ├── env.py
+│   └── versions/
+│       ├── 001_initial_migration.py
+│       └── 002_ticket_activity_tracking.py
 │
-└── 📂 logs/                        # Логи приложения (создается автоматически)
+└── logs/                          # Mounted into the container, created automatically
 ```
 
-## 🗂️ База данных
+## 🗄️ Database
 
-### Схема таблиц
+**users**
+| column | type | notes |
+|---|---|---|
+| id | BigInteger PK | internal id |
+| telegram_id | BigInteger, unique | |
+| username, first_name, last_name | String, nullable | |
+| language | enum (ru/en/es/uk) | |
+| created_at, updated_at | DateTime | |
 
-**users** - Пользователи бота
-```sql
-- id (BigInteger, PK) - Telegram ID пользователя
-- username (String) - Telegram username
-- first_name (String) - Имя
-- language (String) - Выбранный язык
-- created_at (DateTime) - Дата регистрации
-- updated_at (DateTime) - Последнее обновление
-```
+**managers**
+| column | type | notes |
+|---|---|---|
+| id | BigInteger PK | internal id |
+| telegram_id | BigInteger, unique | |
+| username | String, nullable | |
+| first_name | String | |
+| status | enum (online/offline/busy) | not currently surfaced in the UI |
+| is_active | Boolean | |
+| created_at, updated_at | DateTime | |
 
-**managers** - Менеджеры поддержки
-```sql
-- id (BigInteger, PK) - Telegram ID менеджера
-- username (String) - Telegram username
-- first_name (String) - Имя
-- is_active (Boolean) - Доступен ли для назначения тикетов
-- created_at (DateTime) - Дата добавления
-```
+**tickets**
+| column | type | notes |
+|---|---|---|
+| id | BigInteger PK | |
+| ticket_number | String, unique | `TKT-000001` style |
+| user_id | FK → users | |
+| manager_id | FK → managers, nullable | null until claimed |
+| status | enum (open/in_progress/waiting_user/closed) | |
+| subject | String, nullable | first message, truncated |
+| created_at, updated_at | DateTime | |
+| last_activity_at | DateTime | bumped only on new messages — what auto-close actually checks |
+| closed_at | DateTime, nullable | |
 
-**tickets** - Тикеты обращений
-```sql
-- id (Integer, PK) - ID тикета
-- user_id (BigInteger, FK) - ID пользователя
-- manager_id (BigInteger, FK, nullable) - ID назначенного менеджера
-- subject (Text) - Тема обращения
-- status (String) - Статус: open, in_progress, waiting_user, closed
-- created_at (DateTime) - Дата создания
-- updated_at (DateTime) - Последнее обновление
-- closed_at (DateTime, nullable) - Дата закрытия
-```
+**messages**
+| column | type | notes |
+|---|---|---|
+| id | BigInteger PK | |
+| ticket_id | FK → tickets | |
+| user_id | FK → users, nullable | set if the message is from the user |
+| manager_id | FK → managers, nullable | set if the message is from a manager |
+| message_text | Text | |
+| created_at | DateTime | |
 
-**messages** - Сообщения в тикетах
-```sql
-- id (Integer, PK) - ID сообщения
-- ticket_id (Integer, FK) - ID тикета
-- sender_id (BigInteger) - ID отправителя
-- sender_type (String) - Тип отправителя: user или manager
-- message_text (Text) - Текст сообщения
-- created_at (DateTime) - Дата отправки
-```
+`is_from_user` is not a stored column — it's a Python property (`user_id is not None`) derived from which FK is set.
 
-### Связи между таблицами
-- User → Tickets (1:N)
-- Manager → Tickets (1:N)
-- Ticket → Messages (1:N)
+## ⚙️ Configuration
 
-## ⚙️ Конфигурация
+All variables are documented in `.env.example`. Summary:
 
-### Переменные окружения
+**Required:**
+| variable | description |
+|---|---|
+| `BOT_TOKEN` | Telegram bot token |
+| `ADMIN_IDS` | comma-separated Telegram IDs with manager access |
+| `POSTGRES_PASSWORD` | Postgres password |
 
-Полный список переменных с описанием доступен в `.env.example`.
+**Optional (defaults shown):**
+| variable | default | description |
+|---|---|---|
+| `DEFAULT_LANGUAGE` | `ru` | default language for new users |
+| `SUPPORTED_LANGUAGES` | `ru,en,es,uk` | comma-separated language codes enabled in the UI |
+| `MAX_ACTIVE_TICKETS_PER_USER` | `3` | ticket-creation limit per user |
+| `AUTO_CLOSE_TIMEOUT` | `60` | minutes of inactivity before auto-close |
+| `LOG_LEVEL` | `INFO` | Python logging level |
 
-**Обязательные:**
-- `BOT_TOKEN` - токен Telegram бота
-- `ADMIN_IDS` - ID менеджеров через запятую
-- `POSTGRES_PASSWORD` - пароль для PostgreSQL
+### Adding a new language
 
-**Опциональные:**
-- `DEFAULT_LANGUAGE` - язык по умолчанию (ru)
-- `MAX_ACTIVE_TICKETS_PER_USER` - лимит тикетов на пользователя (3)
-- `AUTO_CLOSE_TIMEOUT` - таймаут автозакрытия в минутах (60)
-- `LOG_LEVEL` - уровень логирования (INFO)
+1. Create `bot/locales/<code>.json`, copying the key structure from an existing file (e.g. `en.json`)
+2. Translate every value
+3. Add `<code>` to `SUPPORTED_LANGUAGES` in `.env`
+4. Restart the bot
 
-### Добавление нового языка
-
-1. Создайте файл `bot/locales/язык.json` (например, `fr.json`)
-2. Скопируйте структуру из существующего файла
-3. Переведите все ключи на новый язык
-4. Добавьте код языка в `SUPPORTED_LANGUAGES` в `.env`
-5. Перезапустите бота
-
-Пример структуры перевода:
-```json
-{
-  "start_message": "Привет! Я бот поддержки.",
-  "choose_language": "Выберите язык",
-  "create_ticket": "📝 Создать обращение",
-  ...
-}
-```
-
-## 🔍 Мониторинг и отладка
-
-### Просмотр логов
+## 🔧 Operating the stack
 
 ```bash
-# Логи всех сервисов
-docker-compose logs -f
-
-# Только бот
-docker-compose logs -f bot
-
-# Только PostgreSQL
-docker-compose logs -f postgres
-
-# Только Redis
-docker-compose logs -f redis
-
-# Последние 100 строк
-docker-compose logs --tail=100 bot
+docker compose up -d              # start everything
+docker compose down               # stop everything (keeps volumes/data)
+docker compose down -v            # stop and WIPE all data (postgres/redis volumes)
+docker compose restart bot        # restart just the bot
+docker compose up -d --build bot  # rebuild the bot image and restart it (after a code change)
+docker compose logs -f bot        # follow bot logs
+docker compose ps                 # container status
 ```
 
-### Проверка статуса сервисов
+### Database / migrations
+
+Migrations run automatically on container start (`alembic upgrade head` in the Dockerfile `CMD`). To run Alembic manually:
 
 ```bash
-# Статус всех контейнеров
-docker-compose ps
-
-# Проверка PostgreSQL
-docker-compose exec postgres pg_isready -U postgres
-
-# Проверка Redis
-docker-compose exec redis redis-cli ping
-
-# Вход в контейнер бота
-docker-compose exec bot /bin/bash
+docker compose exec bot alembic current                              # current DB revision
+docker compose exec bot alembic upgrade head                         # apply pending migrations
+docker compose exec bot alembic revision --autogenerate -m "message" # generate a new migration from model changes
 ```
 
-### Резервное копирование
+Always review autogenerated migrations before committing them — Alembic doesn't reliably detect every kind of change.
 
-**Бэкап базы данных:**
-```bash
-# Создать бэкап
-docker-compose exec postgres pg_dump -U postgres support_bot > backup_$(date +%Y%m%d_%H%M%S).sql
-
-# Восстановить из бэкапа
-docker-compose exec -T postgres psql -U postgres support_bot < backup_20240115_120000.sql
-```
-
-**Через pgAdmin:**
-1. Правый клик на базе данных
-2. Backup... → укажите параметры
-3. Для восстановления: Restore... → выберите файл
-
-## 🐛 Решение проблем
-
-### Бот не запускается
+### Backups
 
 ```bash
-# Проверьте корректность .env файла
-cat .env
-
-# Проверьте логи бота
-docker-compose logs bot
-
-# Убедитесь, что все контейнеры запущены
-docker-compose ps
-
-# Пересоберите контейнер
-docker-compose up -d --build bot
+docker compose exec postgres pg_dump -U postgres support_bot > backup_$(date +%Y%m%d_%H%M%S).sql
+docker compose exec -T postgres psql -U postgres support_bot < backup_20260101_120000.sql
 ```
 
-### Ошибки подключения к БД
+## 🔍 Troubleshooting
+
+**Bot doesn't start**
+```bash
+docker compose logs bot
+docker compose ps
+docker compose up -d --build bot
+```
+
+**DB connection / migration errors**
+```bash
+docker compose exec postgres pg_isready -U postgres
+docker compose exec bot alembic current
+```
+If the schema is genuinely broken beyond repair in a throwaway environment: `docker compose down -v && docker compose up -d --build` (this deletes all data — never run this against a real database).
+
+**Bot doesn't respond to anything**
+```bash
+docker compose logs -f bot   # look for a traceback — an unhandled exception in a handler
+                              # is logged here but the user just sees silence
+```
+
+**FSM / Redis weirdness (user stuck in a broken flow)**
+```bash
+docker compose exec redis redis-cli ping
+docker compose exec redis redis-cli FLUSHALL   # wipes ALL FSM state for ALL users, last resort
+```
+
+## 🔐 Security notes
+
+- `postgres` and `redis` do **not** publish their ports to the host by default — they're only reachable from `bot` over the internal Compose network. Don't add `ports:` for them unless you have a specific reason to reach them from outside Docker (and then restrict the source with a firewall).
+- Never commit `.env` — it holds the bot token and DB password. It's already gitignored.
+- Migrations under `alembic/versions/` **are** tracked in git — that's intentional, don't add them back to `.gitignore`.
+- `pgAdmin` is present but commented out in `docker-compose.yml`. If you re-enable it, put it behind a reverse proxy with auth/TLS rather than exposing port 5050 directly, and don't reuse the Postgres password for its own login.
+
+## 🚀 Deploying
+
+There's no separate prod compose file — the same `docker-compose.yml` is used everywhere, with a `.env` that lives only on the target machine (never committed).
 
 ```bash
-# Проверьте, что PostgreSQL готов
-docker-compose exec postgres pg_isready
+# on the server, first time:
+git clone <repository-url> /opt/telegram-support-bot
+cd /opt/telegram-support-bot
+cp .env.example .env   # then fill in real values
+docker compose up -d --build
 
-# Проверьте текущую версию миграций
-docker-compose exec bot alembic current
-
-# Попробуйте применить миграции снова
-docker-compose exec bot alembic upgrade head
-
-# Если не помогает - пересоздайте БД (ВНИМАНИЕ: удалит все данные!)
-docker-compose down -v
-docker-compose up -d
-docker-compose exec bot alembic upgrade head
-```
-
-### Бот не отвечает на команды
-
-1. Проверьте, что бот запущен: `docker-compose ps`
-2. Убедитесь, что токен бота корректный в `.env`
-3. Проверьте логи: `docker-compose logs -f bot`
-4. Перезапустите бота: `docker-compose restart bot`
-
-### Проблемы с Redis/FSM
-
-```bash
-# Проверьте Redis
-docker-compose exec redis redis-cli ping
-
-# Очистите Redis (сбросит все состояния FSM)
-docker-compose exec redis redis-cli FLUSHALL
-
-# Перезапустите Redis
-docker-compose restart redis
-```
-
-## 🔐 Безопасность
-
-### Рекомендации
-
-- ✅ **НЕ коммитьте** файл `.env` в репозиторий
-- ✅ Используйте **сильные пароли** для PostgreSQL
-- ✅ Регулярно **обновляйте зависимости**: `pip list --outdated`
-- ✅ Ограничьте доступ к **портам** (5432, 6379, 5050) на продакшене
-- ✅ Используйте **HTTPS** для веб-интерфейсов
-- ✅ Регулярно создавайте **бэкапы** базы данных
-- ✅ Мониторьте **логи** на подозрительную активность
-
-### Рекомендуемый .gitignore
-
-```gitignore
-.env
-__pycache__/
-*.pyc
-*.pyo
-logs/
-*.sql
-postgres_data/
-redis_data/
-pgadmin_data/
-```
-
-## 🚀 Деплой на продакшен
-
-### Рекомендации для продакшена
-
-1. **Используйте внешние сервисы БД** (например, Managed PostgreSQL)
-2. **Настройте SSL/TLS** для всех соединений
-3. **Ограничьте сетевой доступ** (firewall, security groups)
-4. **Настройте автоматические бэкапы**
-5. **Используйте secrets management** (Docker Secrets, Vault)
-6. **Настройте мониторинг** (Prometheus, Grafana)
-7. **Добавьте алерты** на критические ошибки
-8. **Используйте reverse proxy** (nginx) с rate limiting
-
-### Пример nginx конфигурации
-
-```nginx
-server {
-    listen 80;
-    server_name pgadmin.yourdomain.com;
-    
-    location / {
-        proxy_pass http://localhost:5050;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+# subsequent deploys:
+git pull
+docker compose up -d --build bot
 ```

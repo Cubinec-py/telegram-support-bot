@@ -73,9 +73,3 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Project specific
-# Keep initial migration, ignore others
-!alembic/versions/001_initial_migration.py
-alembic/versions/*.py
-!alembic/versions/.gitkeep
-

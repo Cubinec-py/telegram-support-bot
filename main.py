@@ -9,6 +9,7 @@ from bot.database.database import engine, async_session_maker, init_db
 from bot.handlers import user_handlers, manager_handlers
 from bot.middlewares.db_middleware import DatabaseMiddleware
 from bot.middlewares.rate_limit_middleware import RateLimitMiddleware
+from bot.middlewares.user_lock_middleware import UserLockMiddleware
 from bot.utils.scheduler import start_ticket_auto_close_scheduler
 
 # Настройка логирования
@@ -37,9 +38,14 @@ async def main():
     dp = Dispatcher(storage=storage)
 
     # Register middleware
+    # Order matters: rate limit drops flood before it even tries for the lock,
+    # then the per-user lock serializes whatever's left so FSM-state races
+    # (e.g. a spammed message creating multiple tickets) can't happen.
     rate_limit_middleware = RateLimitMiddleware(redis)
-    dp.message.middleware(rate_limit_middleware)
-    dp.callback_query.middleware(rate_limit_middleware)
+    user_lock_middleware = UserLockMiddleware(redis)
+    for observer in (dp.message, dp.callback_query):
+        observer.middleware(rate_limit_middleware)
+        observer.middleware(user_lock_middleware)
     dp.update.middleware(DatabaseMiddleware(async_session_maker))
 
     # Register routers
